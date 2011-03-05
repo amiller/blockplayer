@@ -1,0 +1,13 @@
+These scripts do different kinds of calibration.
+(listed in order of estimated usefulness)
+
+- depthcalibration.py
+  This calibrates the depth image using known intrinsic calibration for the IR camera and images of a checkerboard pattern. It has notes in it, take a look
+  
+
+- intrinsic.py 
+  Intrinsic calibration for just the IR camera (no depth). This is incomplete - actually it's just a tool that I use to take checkerboard frames. It shows you a realtime preview and you can press a snapshot button to save a number of frames. Press ^C or ESC to stop. Requires IPython (type record()). Use these images with the caltech CALIB_toolbox. You probably need to use IR back lighting. 
+
+
+- calibrationcube.py
+  There's a python RANSAC function using numpy in here. This is intended to use a custom cube built with lego
