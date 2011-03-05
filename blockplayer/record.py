@@ -31,7 +31,7 @@ def record(filename=None):
                 print 'frame: %d' % frame
             frame = frame + 1
     except KeyboardInterrupt:
-         infe compress()
+        compress()
 
 
 def compress():

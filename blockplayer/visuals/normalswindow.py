@@ -2,7 +2,7 @@ import numpy as np
 from OpenGL.GL import *
 from OpenGL.GLU import *
 from OpenGL.GL.ARB.vertex_buffer_object import *
-import calibkinect
+from .. import calibkinect
 from camerawindow import CameraWindow
 
 # Window for drawing point clouds
