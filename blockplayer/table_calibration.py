@@ -77,7 +77,6 @@ def finish_cube_calib(side='L'):
     # Tinker with the rotation here
     mR[:3,:3] = np.dot(expmap.axis2rot(np.array([0,np.pi/2,0])),mR[:3,:3])
 
-
     # Find the translation component using the lattice
     mL = lattice.lattice2(nL,wL,depthL,mL,
                           np.dot(config.bgL['Ktable'],config.bgL['KK']),
