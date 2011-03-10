@@ -26,9 +26,13 @@ def advance(skip=1):
 
 def load_dataset(pathname):
     global current_path, frame_num
-    # Check for consistency, count the number of images
 
+    # Check for consistency, count the number of images
     current_path = pathname
+
+    # Load the config
+    config.load(current_path)
+
     frame_num = 0
 
 
