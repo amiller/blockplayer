@@ -21,28 +21,29 @@ device, = platform.get_devices()
 context = cl.Context(devices=[device])
 queue = cl.CommandQueue(context)
 mf = cl.mem_flags
-sampler = cl.Sampler(context, True, cl.addressing_mode.CLAMP, cl.filter_mode.LINEAR)
+sampler = cl.Sampler(context, True,
+                     cl.addressing_mode.CLAMP,
+                     cl.filter_mode.LINEAR)
 
 def normal_maker(name, mat, matw, matr):
   def tup(i):
     return '(float4)' + repr(tuple(mat[i].tolist()))
-    
+
   def tupw(i):
     return '(float4)' + repr(tuple(matw[i].tolist()))
-    
+
   def tupr(i):
     return '(float4)' + repr(tuple(matr[i].tolist()))
-
 
   return """
   inline float4 matmul3_%s(const float4 r1) {
     return (float4)(dot(%s,r1),dot(%s,r1),dot(%s,r1),0);
   }
-  
+
   inline float4 matmul4_%s(const float4 r1) {
     return (float4)(dot(%s,r1),dot(%s,r1),dot(%s,r1),dot(%s,r1));
   }
-  
+
   inline float4 matmul3z_%s(const float4 r1) {
     return (float4)(dot(%s,r1),dot(%s,r1),dot(%s,r1),0);
   }
@@ -333,7 +334,7 @@ def set_rect(_rectL, _rectR):
   global lengthL, lengthR
   lengthL = (B1-T1)*(R1-L1)
   lengthR = (B2-T2)*(R2-L2)
-  assert lengthL + lengthR < 480*640
+  assert lengthL + lengthR <= 480*640
   
 def load_mask(mask, spot):
   assert spot=='LEFT' or spot=='RIGHT'
@@ -394,7 +395,7 @@ def compute_normals(spot):
   kernel = program.normal_compute_LEFT if spot =='LEFT' else program.normal_compute_RIGHT
   evt = kernel(queue, (R-L,B-T), None, normals_buf, xyz_buf,
         filt_buf, mask_buf, bounds, np.int32(offset))
-  import main
+  #import main
   #if main.WAIT_COMPUTE: evt.wait()
   return evt
 
@@ -406,8 +407,8 @@ def compute_flatrot(mat):
   evt = program.flatrot_compute(queue, (lengthL+lengthR,), None,
     qxdyqz_buf, normals_buf, f(mat[0,:]), f(mat[1,:]), f(mat[2,:]))
   
-  import main
-  if main.WAIT_COMPUTE: evt.wait()
+  #import main
+  #if main.WAIT_COMPUTE: evt.wait()
   return evt
   
 def compute_lattice2(modelmat, modulo):
@@ -420,8 +421,8 @@ def compute_lattice2(modelmat, modulo):
     normals_buf, xyz_buf, np.float32(1.0/modulo),
     f(modelmat[0,:]), f(modelmat[1,:]), f(modelmat[2,:]))
 
-  import main
-  if main.WAIT_COMPUTE: evt.wait()
+  #import main
+  #if main.WAIT_COMPUTE: evt.wait()
   return evt
   
 def compute_gridinds(xfix, zfix, LW, LH, gridmin, gridmax):
@@ -436,8 +437,8 @@ def compute_gridinds(xfix, zfix, LW, LH, gridmin, gridmax):
     np.float32(LW),   np.float32(LH), 
     gridmin, gridmax)
     
-  import main
-  if main.WAIT_COMPUTE: evt.wait()
+  #import main
+  #if main.WAIT_COMPUTE: evt.wait()
   return evt  
 
 def reduce_flatrot():
@@ -464,5 +465,3 @@ def reduce_lattice2():
   cxcz = sums[:2,:].sum(0)
 
   return cxcz,qxqz
-  
-  

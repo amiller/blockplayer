@@ -36,16 +36,20 @@ def normals_opencl2(depthL, maskL, rectL,
   opencl.compute_normals('RIGHT').wait()
 
   
-def normals_opencl(depth, mask, rect=((0,0),(640,480)), win=7, offset=0):
+def normals_opencl(depth, mask=None, rect=((0,0),(640,480)), win=7, offset=0):
   (l,t),(r,b) = rect
   assert depth.dtype == np.float32
   depth = depth[t:b,l:r]
   #depth[depth==2047] = -1e8
-  global filt
-  filt = scipy.ndimage.uniform_filter(depth,win)  # 2ms?
-  opencl.load_filt(filt,rect)                     # 329us
-  opencl.load_mask(mask,rect)
-  opencl.compute_normals(rect)                # 1.51ms
+  
+  if mask is None:
+    mask = np.ones((b-t,r-l),'bool')
+
+  global filtL
+  filtL = scipy.ndimage.uniform_filter(depth,win)  # 2ms?
+  opencl.load_filt(filtL,'LEFT')                   # 329us
+  opencl.load_mask(mask,'LEFT')
+  return opencl.compute_normals('LEFT')            # 1.51ms
   #n = opencl.get_normals(rect=rect)          # 660us
   #return n
  
