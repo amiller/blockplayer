@@ -18,7 +18,7 @@ from config import LW
 #    window = CameraWindow()
 
 
-newest_folder = "data/newest_calibration"
+newest_folder = "data/newest_calibration/config"
 
 
 def from_rect(m, rect):

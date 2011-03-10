@@ -7,7 +7,7 @@ import cPickle as pickle
 
 
 def load(dir_path):
-    with open('%s/config.pkl' % dir_path, 'r') as f:
+    with open('%s/config/config.pkl' % dir_path, 'r') as f:
         globals().update(pickle.load(f))
 
 
@@ -18,9 +18,6 @@ def save(dir_path):
                      LH=LH,
                      LW=LW,
                      ), f)
-
-
-RIGHT2LEFT = np.eye(4)
 
 
 # Duplo block sizes

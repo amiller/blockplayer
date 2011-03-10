@@ -15,7 +15,7 @@ def record(filename=None):
     dataset.folder = foldername
 
     os.mkdir(foldername)
-    shutil.copytree('data/newest_calibration', '%s/calib' % foldername)
+    shutil.copytree('data/newest_calibration/config', '%s/config' % foldername)
     print "Created new dataset: %s" % foldername
 
     frame = 0

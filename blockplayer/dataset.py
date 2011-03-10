@@ -3,6 +3,7 @@ import shutil
 import glob
 import gzip_patch
 import gzip
+import config
 
 depthL = None
 depthR = None
