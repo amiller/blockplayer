@@ -16,8 +16,8 @@ def print_info(obj, info_cls):
 
             print "%s: %s" % (info_name, info_value)
 
-platform, = cl.get_platforms()
-device, = platform.get_devices()
+platform = cl.get_platforms()[0]
+device = platform.get_devices()[0]
 context = cl.Context(devices=[device])
 queue = cl.CommandQueue(context)
 mf = cl.mem_flags
