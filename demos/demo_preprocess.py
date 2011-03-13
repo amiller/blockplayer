@@ -4,11 +4,14 @@ from blockplayer import preprocess
 from blockplayer import config
 import cv
 import pylab
+import numpy as np
 
 
-def show_mask(name, m):
-    im = cv.CreateImage((m.shape[1],m.shape[0]), 32, 1)
-    cv.SetData(im, m)
+def show_mask(name, m, rect):
+    im = cv.CreateImage((m.shape[1],m.shape[0]), 32, 3)
+    cv.SetData(im, np.ascontiguousarray(np.dstack(3*[m])))
+    (t,l),(b,r) = rect
+    cv.Rectangle(im, (t,l), (b,r), (255,255,0))
     cv.ShowImage(name, im)
 
 
@@ -17,8 +20,9 @@ def once():
     depthL,depthR = dataset.depthL,dataset.depthR
     maskL,rectL = preprocess.threshold_and_mask(depthL,config.bgL)
     maskR,rectR = preprocess.threshold_and_mask(depthR, config.bgR)
-    show_mask('maskL', maskL.astype('f'))
-    show_mask('maskR', maskR.astype('f'))
+    show_mask('maskL', maskL.astype('f'), rectL)
+    show_mask('maskR', maskR.astype('f'), rectR)
+
     pylab.waitforbuttonpress(0.01)
 
 
