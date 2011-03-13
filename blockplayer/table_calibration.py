@@ -1,4 +1,3 @@
-from pylab import *
 from OpenGL.GL import *
 from OpenGL.GL.framebufferobjects import *
 import numpy as np
@@ -287,7 +286,7 @@ def find_plane(depth, boundpts):
     background[background>=3] -= 3
     openglbgLo += 3
     
-    if 1:
+    if 0:
         figure(0);
         imshow(openglbgLo)
     

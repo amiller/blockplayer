@@ -1,3 +1,9 @@
-You need to run download.sh to get the dataset. Soon you'll be able to do it with blockplayer.dataset.download(), but right now that just prints out some instructions.
+Important Instructions
+
+1. vmdist/install_vm.sh is the official set of dependencies and requirements. It installs everything on a default ubuntu 10.10, and should at least work reliably on a virtualbox machine (i.e. no nvidia drivers).
+
+2. You need to run download.sh to get the dataset. Soon you'll be able to do it with blockplayer.dataset.download(), but right now that just prints out some instructions.
+
+3. The setup.py isn't operational right now. But you need to run './build.sh' in blockplayer/ to build the ctype so. 
 
 

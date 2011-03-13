@@ -192,7 +192,7 @@ kernel void lattice2_compute(
 	global const float4 *norm,
 	global const float4 *xyz,
 	float modulo,
-	float4 mm0, float4 mm1, float4 mm2
+	const float4 mm0, const float4 mm1, const float4 mm2
 )
 {
   unsigned int index = get_global_id(0);
@@ -204,7 +204,10 @@ kernel void lattice2_compute(
    return;
   }
 
-  float4 mmat[3] = {mm0, mm1, mm2};
+  float4 mmat[3];
+  mmat[0] = mm0;
+  mmat[1] = mm1;
+  mmat[2] = mm2;
 
   // Project the depth image
   float4 XYZ = matmul3(mmat, xyz[index]);
