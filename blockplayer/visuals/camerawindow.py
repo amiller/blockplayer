@@ -12,6 +12,7 @@ class CameraWindow(Window):
     self.clearcolor = [0,0,0,0]
     self.lookat = np.array([0,0,0])
     self.upvec = np.array([0,1,0])
+    self.mode = 'perpsective'
     self._mpos = None
     super(CameraWindow,self).__init__(*args, **kwargs)
 
@@ -45,8 +46,10 @@ class CameraWindow(Window):
   def set_camera(self):
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
-    gluPerspective(60, 4/3., 0.3, 200)
-    #glOrtho(-1.33,1.33,-1,1,0.3,200)
+    if self.mode == 'perspective':
+      gluPerspective(60, 4/3., 0.3, 200)
+    else:
+      glOrtho(-1.33,1.33,-1,1,0.3,200)
 
     glMatrixMode(GL_MODELVIEW)
     # flush that stack in case it's broken from earlier

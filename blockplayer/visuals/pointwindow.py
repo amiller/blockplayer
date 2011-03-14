@@ -6,9 +6,9 @@ from OpenGL.GL.ARB.vertex_buffer_object import *
 
 TEXTURE_TARGET = GL_TEXTURE_RECTANGLE
 
+
 # Window for drawing point clouds
 class PointWindow(CameraWindow):
-  
   def __init__(self, *args, **kwargs):
     self.XYZ = np.zeros((0,3))
     self.RGBA = None

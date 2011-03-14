@@ -41,15 +41,12 @@ def project(X, Y, Z, mat):
   return x*w, y*w, z*w
 
 
-def lattice2_opencl(mat,tableplane,init_t=None):
-  from config import LH,LW
+def lattice2_opencl(mat, init_t=None):
+  from config import LW
   assert mat.shape == (4,4)
+  assert mat.dtype == np.float32
   global modelmat
   modelmat = np.array(mat)
-  modelmat[1,3] = tableplane[3]
-
-  # Build a matrix that can project the depth image into model space
-  matxyz = np.dot(modelmat, calibkinect.xyz_matrix().astype('f'))
 
   # Returns warped coordinates, and sincos values for the lattice
   opencl.compute_lattice2(modelmat[:3,:4], LW)
@@ -60,9 +57,13 @@ def lattice2_opencl(mat,tableplane,init_t=None):
   if init_t:
     global face
     X,Y,Z,face = np.rollaxis(opencl.get_modelxyz(),1)
-    cx,cz = np.rollaxis(np.frombuffer(np.array(face).data, dtype='i2').reshape(-1,2),1)
+    cx,cz = np.rollaxis(np.frombuffer(np.array(face).data,
+                                      dtype='i2').reshape(-1,2),1)
 
-    modelmat[:,3] -= np.round([X[cz!=0].mean()/LW, 0, Z[cx!=0].mean()/LW, 0])*LW
+    modelmat[:,3] -= np.round([X[cz!=0].mean()/LW,
+                               0,
+                               Z[cx!=0].mean()/LW,
+                               0])*LW
     opencl.compute_lattice2(modelmat[:3,:4], LW)
 
   # Find the circular mean, using weights
@@ -77,16 +78,6 @@ def lattice2_opencl(mat,tableplane,init_t=None):
   meanx = cmean(qx2qz2[:2],cxcz[0])
   meanz = cmean(qx2qz2[2:],cxcz[1])
   modelmat[:,3] -= np.array([meanx, 0, meanz, 0])
-
-  import main
-  if main.SHOW_LATTICEPOINTS:
-    _,_,_,face = np.rollaxis(opencl.get_modelxyz(),1)
-    Xo,Yo,Zo,_ = np.rollaxis(opencl.get_xyz(),1)
-
-    cx,cz = np.rollaxis(np.frombuffer(np.array(face).data, dtype='i2').reshape(-1,2),1)
-    R,G,B = np.abs(cx),cx*0,np.abs(cz)
-    update(Xo,Yo,Zo,COLOR=(R,G,B,R*0+1))
-    window.Refresh()
 
   return modelmat
 
@@ -146,99 +137,4 @@ def lattice2(n,w,depth,mat,matxyz,rect,init_t=None):
   dXYZ = ((dx, dy, dz))
   cXYZ = ((cx, cy, cz))
 
-  if 1:
-    Xo,Yo,Zo = project(u,v,depth[t:b,l:r], matxyz)
-    cany = (cx>0)|(cz>0)  
-    R,G,B = cx[cany],cy[cany],cz[cany]
-    update(Xo[cany],Yo[cany],Zo[cany],COLOR=(R,G,B,R+G+B))
-
-    window.Refresh()
-    
   return modelmat
-
-
-def update(X,Y,Z,UV=None,rgb=None,COLOR=None,AXES=None):
-  global window
-  #window.lookat = np.array([0,0,0])
-  #window.lookat = np.array([0,0.5,0])
-  
-  xyz = np.vstack((X.flatten(),Y.flatten(),Z.flatten())).transpose()
-  mask = Z.flatten()<10
-  xyz = xyz[mask,:]
-  window.XYZ = xyz
-
-  global axes_rotation
-  axes_rotation = np.eye(4)
-  if not AXES is None:
-    # Rotate the axes
-    axes_rotation[:3,:3] = expmap.axis2rot(-AXES)
-
-  if not UV is None:
-    U,V = UV
-    uv = np.vstack((U.flatten(),V.flatten())).transpose()
-    uv = uv[mask,:]
-
-  if not COLOR is None:
-    R,G,B,A = COLOR
-    color = np.vstack((R.flatten(), G.flatten(), B.flatten(), A.flatten())).transpose()
-    color = color[mask,:]
-
-  window.UV = uv if UV else None
-  window.COLOR = color if COLOR else None
-  window.RGB = rgb
-    
-from visuals.normalswindow import NormalsWindow
-if not 'window' in globals(): 
-  window = NormalsWindow(title='Lattice Tracking', size=(640,480))
-
-window.Refresh()
-
-  
-
-@window.event
-def on_draw_axes():
-  from config import LW,LH
-  #return
-  glPolygonOffset(1.0,0.2)
-  glEnable(GL_POLYGON_OFFSET_FILL)
-  
-  # Draw the gray table
-  if 1:
-    glBegin(GL_QUADS)
-    glColor(0.6,0.7,0.7,1)
-    for x,y,z in config.bgL['boundptsM']:
-      glVertex(x,y,z)
-    glEnd()
-  
-  glDisable(GL_POLYGON_OFFSET_FILL)
-  
-  glPushMatrix() 
-  glEnable(GL_BLEND)
-  glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA)
-
-  
-  if 1:
-    # Draw the axes for the model coordinate space
-    glLineWidth(3)
-    glMultMatrixf(np.linalg.inv(modelmat).transpose())
-    glScalef(LW,LH,LW)
-    glBegin(GL_LINES)
-    glColor3f(1,0,0); glVertex3f(0,0,0); glVertex3f(1,0,0)
-    glColor3f(0,1,0); glVertex3f(0,0,0); glVertex3f(0,1,0)
-    glColor3f(0,0,1); glVertex3f(0,0,0); glVertex3f(0,0,1)
-    glEnd()
-
-    import grid  
-    # Draw a grid for the model coordinate space
-  
-    glLineWidth(1)
-    glBegin(GL_LINES)
-
-    GR = grid.GRIDRAD*2
-    glColor3f(0.2,0.2,0.4)
-    for j in range(0,1):
-      for i in range(-GR,GR+1):
-        glVertex(i,j,-GR); glVertex(i,j,GR)
-        glVertex(-GR,j,i); glVertex(GR,j,i)
-    glEnd()
-    glPopMatrix()

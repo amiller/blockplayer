@@ -1,7 +1,6 @@
 # This module will store all the configuration variables
 # that are video sequence-specific and that do not
 # change during the course of running a video sequence.
-
 import numpy as np
 import cPickle as pickle
 
@@ -12,12 +11,12 @@ def load(dir_path):
 
 
 def save(dir_path):
-  with open('%s/config.pkl' % dir_path,'w') as f:
-    pickle.dump(dict(bgL=bgL,
-                     bgR=bgR,
-                     LH=LH,
-                     LW=LW,
-                     ), f)
+    with open('%s/config/config.pkl' % dir_path,'w') as f:
+        pickle.dump(dict(bgL=bgL,
+                         bgR=bgR,
+                         LH=LH,
+                         LW=LW,
+                         ), f)
 
 
 # Duplo block sizes

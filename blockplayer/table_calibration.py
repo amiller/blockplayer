@@ -12,12 +12,8 @@ import calibkinect
 import config
 from config import LW
 
-#from visuals.camerawindow import CameraWindow
-#if not 'window' in globals():
-#    window = CameraWindow()
 
-
-newest_folder = "data/newest_calibration/config"
+newest_folder = "data/newest_calibration"
 
 
 def from_rect(m, rect):
@@ -28,10 +24,10 @@ def from_rect(m, rect):
 def finish_table_calib():
     # We've already picked the bound points for each image
     global depthL, depthR
-    boundptsL = np.load('%s/boundptsL.npy' % newest_folder)
-    boundptsR = np.load('%s/boundptsR.npy' % newest_folder)
-    depthL = np.load('%s/depthL.npy' % newest_folder)
-    depthR = np.load('%s/depthR.npy' % newest_folder)
+    boundptsL = np.load('%s/config/boundptsL.npy' % newest_folder)
+    boundptsR = np.load('%s/config/boundptsR.npy' % newest_folder)
+    depthL = np.load('%s/config/depthL.npy' % newest_folder)
+    depthR = np.load('%s/config/depthR.npy' % newest_folder)
 
     config.bgL = find_plane(depthL, boundptsL)
     config.bgR = find_plane(depthR, boundptsR)
@@ -42,12 +38,13 @@ def finish_cube_calib(side='L'):
     """This finds a matrix that puts the Left and Right views in a common
     reference frame, using a calibration cube that's 18 units long.
     """
+    finish_table_calib()
     config.load(newest_folder)
     opencl.setup_kernel((config.bgL['KK'],config.bgL['Ktable']),
                         (config.bgR['KK'],config.bgR['Ktable']))
 
-    depthL = np.load('%s/cubeL.npy' % newest_folder)
-    depthR = np.load('%s/cubeR.npy' % newest_folder)
+    depthL = np.load('%s/config/cubeL.npy' % newest_folder)
+    depthR = np.load('%s/config/cubeR.npy' % newest_folder)
 
     global maskL,rectL,maskR,rectR
     (maskL,rectL) = preprocess.threshold_and_mask(depthL, config.bgL)
@@ -122,10 +119,10 @@ def run_cubeframes():
     global depthL, depthR
     freenect.sync_stop()
     depthL, _ = freenect.sync_get_depth(0)
-    np.save('%s/cubeL' % newest_folder, depthL)
+    np.save('%s/config/cubeL' % newest_folder, depthL)
     freenect.sync_stop()
     depthR, _ = freenect.sync_get_depth(1)
-    np.save('%s/cubeR' % newest_folder, depthR)
+    np.save('%s/config/cubeR' % newest_folder, depthR)
     print('saved cube images')
 
 
@@ -155,8 +152,8 @@ def _run_calib(side='L'):
         print('Picked point %d of 4' % (len(points)))
         if len(points) == 4:
             print 'OK'
-            np.save('%s/boundpts%s' % (newest_folder, side), points)
-            np.save('%s/depth%s' % (newest_folder, side), depth)
+            np.save('%s/config/boundpts%s' % (newest_folder, side), points)
+            np.save('%s/config/depth%s' % (newest_folder, side), depth)
             print('saved ', name)
             if side=='L':
                 points = []
@@ -174,6 +171,11 @@ def _run_calib(side='L'):
 
 
 def find_plane(depth, boundpts):
+    from visuals.camerawindow import CameraWindow
+    global window
+    if not 'window' in globals():
+        window = CameraWindow()
+
     # Build a mask of the image inside the convex points clicked
     u,v = uv = np.mgrid[:480,:640][::-1]
     mask = np.ones((480,640),bool)

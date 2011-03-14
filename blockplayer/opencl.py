@@ -5,6 +5,7 @@ import pyopencl as cl
 import numpy as np
 import preprocess
 
+
 def print_info(obj, info_cls):
     for info_name in sorted(dir(info_cls)):
         if not info_name.startswith("_") and info_name != "to_string":
@@ -24,6 +25,7 @@ mf = cl.mem_flags
 sampler = cl.Sampler(context, True,
                      cl.addressing_mode.CLAMP,
                      cl.filter_mode.LINEAR)
+
 
 def normal_maker(name, mat, matw, matr):
   def tup(i):
@@ -47,7 +49,7 @@ def normal_maker(name, mat, matw, matr):
   inline float4 matmul3z_%s(const float4 r1) {
     return (float4)(dot(%s,r1),dot(%s,r1),dot(%s,r1),0);
   }
-  
+
   
   // Main Kernel code
   kernel void normal_compute_%s(
@@ -64,7 +66,8 @@ def normal_maker(name, mat, matw, matr):
   	unsigned int height = get_global_size(1);
   	unsigned int index = (y * width) + x + offset;
 
-  	if (x<1 || x>=width-1 || y<1 || y>=height-1 || !mask[index] || filt[index]<-1000) {
+  	if (x<1 || x>=width-1 || y<1 || y>=height-1 ||
+            !mask[index] || filt[index]<-1000) {
   	   output[index] = (float4)(0);
   	  xoutput[index] = (float4)(0);
   	  return;
@@ -96,8 +99,8 @@ def normal_maker(name, mat, matw, matr):
     xyz = matmul3z_%s(xyz);
     xyz.w = w;
 
-  	 output[index] =  xyz;
-  	xoutput[index] = _xyz;
+    output[index] =  xyz; // this is the normals
+    xoutput[index] = _xyz; // this is the table_points
   }
   """ % (name, tup (0), tup (1), tup (2), 
          name, tupw(0), tupw(1), tupw(2), tupw(3),
@@ -134,7 +137,7 @@ inline float4 color_axis(float4 n)
 kernel void flatrot_compute(
 	global float4 *output,
 	global const float4 *norm,
-	float4 v0, float4 v1,	float4 v2
+	float4 v0, float4 v1, float4 v2
 )
 {
   unsigned int index = get_global_id(0);
@@ -286,6 +289,7 @@ def setup_kernel(matsL=None, matsR=None):
     
     global program
     program = cl.Program(context, kernel_normals).build("-cl-mad-enable")
+
     # I have no explanation for this workaround. Presumably it's fixed in 
     # another version of pyopencl. Wtf. Getting the kernel like this
     # makes it go much faster when we __call__ it.

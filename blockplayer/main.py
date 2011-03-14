@@ -45,6 +45,7 @@ def showimagergb(name, data):
   cv.SetData(image, data.tostring(), data.dtype.itemsize * data.shape[1] * data.shape[2])
   cv.ShowImage(name, image)
 
+
 def grab():
   global depthL, rgbL, depthR, rgbR
   (depthL,_),(rgbL,_) = freenect.sync_get_depth(0), (None,None)#freenect.sync_get_video(0)

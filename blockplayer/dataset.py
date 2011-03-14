@@ -4,6 +4,7 @@ import glob
 import gzip_patch
 import gzip
 import config
+import opencl
 
 depthL = None
 depthR = None
@@ -32,6 +33,8 @@ def load_dataset(pathname):
 
     # Load the config
     config.load(current_path)
+    opencl.setup_kernel((config.bgL['KK'],config.bgL['Ktable']),
+                        (config.bgR['KK'],config.bgR['Ktable']))
 
     frame_num = 0
 

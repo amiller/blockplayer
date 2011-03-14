@@ -11,31 +11,34 @@ import opencl
 import os
 import ctypes
 print __file__
-speedup = np.ctypeslib.load_library('speedup_ctypes.so', os.path.dirname(__file__))
+speedup = np.ctypeslib.load_library('speedup_ctypes.so',
+                                    os.path.dirname(__file__))
 
 matarg = np.ctypeslib.ndpointer(dtype=np.float32, ndim=2, flags='C_CONTIGUOUS')
-speedup.normals.argtypes = [matarg,  matarg, matarg,  matarg, matarg, matarg, matarg, ctypes.c_int, ctypes.c_int]
+speedup.normals.argtypes = [matarg, matarg, matarg,
+                            matarg, matarg, matarg,
+                            matarg, ctypes.c_int, ctypes.c_int]
 
 
 def normals_opencl2(depthL, maskL, rectL,
                     depthR, maskR, rectR, win=7):
-  assert depthL.dtype == np.float32
-  assert depthR.dtype == np.float32
+    assert depthL.dtype == np.float32
+    assert depthR.dtype == np.float32
 
-  global filtL, filtR
+    global filtL, filtR
 
-  opencl.load_mask(maskL,'LEFT')
-  opencl.load_mask(maskR,'RIGHT')
+    opencl.load_mask(maskL,'LEFT')
+    opencl.load_mask(maskR,'RIGHT')
 
-  filtL = scipy.ndimage.uniform_filter(depthL,win)
-  opencl.load_filt(filtL,'LEFT')                    
-  opencl.compute_normals('LEFT')  
+    filtL = scipy.ndimage.uniform_filter(depthL,win)
+    opencl.load_filt(filtL,'LEFT')
+    opencl.compute_normals('LEFT')
 
-  filtR = scipy.ndimage.uniform_filter(depthR,win)  
-  opencl.load_filt(filtR,'RIGHT')                    
-  opencl.compute_normals('RIGHT').wait()
+    filtR = scipy.ndimage.uniform_filter(depthR,win)
+    opencl.load_filt(filtR,'RIGHT')
+    opencl.compute_normals('RIGHT').wait()
 
-  
+
 def normals_opencl(depth, mask=None, rect=((0,0),(640,480)), win=7, offset=0):
   (l,t),(r,b) = rect
   assert depth.dtype == np.float32
