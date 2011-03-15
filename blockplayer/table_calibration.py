@@ -11,6 +11,7 @@ import preprocess
 import calibkinect
 import config
 from config import LW
+from pylab import *
 
 
 newest_folder = "data/newest_calibration"
@@ -112,7 +113,8 @@ def finish_cube_calib(side='L'):
 
 def run_calib(*args):
     close('all')
-    _run_calib(*args)
+    _run_calib('L')
+    _run_calib('R')
 
 
 def run_cubeframes():
@@ -146,20 +148,8 @@ def _run_calib(side='L'):
 
     def pick(event):
         global points
-        if len(points) >= 4:
-            return
         points.append((event.xdata, event.ydata))
         print('Picked point %d of 4' % (len(points)))
-        if len(points) == 4:
-            print 'OK'
-            np.save('%s/config/boundpts%s' % (newest_folder, side), points)
-            np.save('%s/config/depth%s' % (newest_folder, side), depth)
-            print('saved ', name)
-            if side=='L':
-                points = []
-                _run_calib('R')
-            if side=='R':
-                finish_table_calib()
 
     imshow(depth)
     draw()
@@ -168,6 +158,12 @@ def _run_calib(side='L'):
 
     print("Make sure that this is the %s camera" % name)
     print("Click four points")
+    while len(points) < 4:
+        waitforbuttonpress(0.001)
+
+    print 'OK'
+    np.save('%s/config/boundpts%s' % (newest_folder, side), points)
+    np.save('%s/config/depth%s' % (newest_folder, side), depth)
 
 
 def find_plane(depth, boundpts):
@@ -275,8 +271,12 @@ def find_plane(depth, boundpts):
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDeleteRenderbuffers(2, [rb,rbc]);
     glDeleteFramebuffers(1, [fbo]);
-    glReadBuffer(GL_BACK)
-    glDrawBuffer(GL_BACK)
+    try:
+        glDrawBuffer(GL_BACK)
+        glReadBuffer(GL_BACK)
+    except:
+        glDrawBuffer(GL_FRONT)
+        glReadBuffer(GL_FRONT)
   
     background = np.array(depth)
     background[~mask] = 2047
