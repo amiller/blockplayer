@@ -4,6 +4,16 @@ Important Instructions
 
 2. You need to run download.sh to get the dataset. Soon you'll be able to do it with blockplayer.dataset.download(), but right now that just prints out some instructions.
 
-3. The setup.py isn't operational right now. But you need to run './build.sh' in blockplayer/ to build the ctype so. 
+3. The setup.py isn't operational right now. But you need to run './build.sh' in blockplayer/ to build the ctypes so. 
+
+
+
+If want to run the tests or makewww headless (the demos will probably be pointless), then you need to start an X virtual server with
+    Xvfb
+You might also need to specify the mesa rather than the nvidia drivers, if you have those installed. So, for shelling into my school desktop, I use the following:
+    LD_PRELOAD=/usr/lib/mesa/libGL.so xvfb-run bash
+
+and then I would run one of the scripts: 
+    python makewww/make_calib.py
 
 

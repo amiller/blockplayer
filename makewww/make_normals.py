@@ -110,20 +110,6 @@ def run_normals():
 
         ds.append(d)
 
-def _write():
-    f.write("""
-    <div><h4>Normals</h4>
-    """)
-
-    for i in range(1):
-        dataset.load_random_dataset()
-        dataset.advance()
-        f.write("""<h5>{dataset.current_path}
-                </h5>""".format(**locals()))
-
-    f.write("""
-    </div>
-    """)
 
 if __name__ == "__main__":
     if not 'ds' in globals():
