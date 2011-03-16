@@ -4,7 +4,8 @@
 set -e
 
 # Useful linux things
-sudo apt-get install -y emacs git build-essential cmake subversion \
+sudo apt-get update
+sudo apt-get install -y emacs23-nox git build-essential cmake subversion \
 python2.6 python-setuptools python-dev \
 gfortran libatlas-base-dev \
 libxft2-dev libgtk2.0-dev python-gtk2-dev python-wxgtk2.8 \
@@ -70,6 +71,7 @@ set +e; git clone git@github.com:amiller/blockplayer.git; set -e
 echo "export PYTHONPATH=\$PYTHONPATH:/home/user/blockplayer" >> ~/.bashrc
 source ~/.bashrc
 pushd blockplayer
+./download.sh
 ./build.sh
 pushd blockplayer
 ./build.sh
