@@ -8,7 +8,8 @@ sudo apt-get install -y emacs git build-essential cmake subversion \
 python2.6 python-setuptools python-dev \
 gfortran libatlas-base-dev \
 libxft2-dev libgtk2.0-dev python-gtk2-dev python-wxgtk2.8 \
-libusb-1.0 libglut3-dev libxmu-dev
+libusb-1.0 libglut3-dev libxmu-dev xvfb libgl1-mesa-dev libglu1-mesa-dev \
+libx11-dev
 
 # Numpy
 set +e; git clone git://github.com/numpy/numpy.git numpy; set -e
@@ -43,9 +44,11 @@ make
 sudo make install
 popd
 
+
 # BlockPlayer
 set +e; git clone git://github.com/amiller/blockplayer.git; set -e
 echo "export PYTHONPATH=\$PYTHONPATH:/home/user/blockplayer" >> ~/.bashrc
+
 
 # OpenCL
 # Pointers here: http://www.luxrender.net/wiki/Building_on_Ubuntu_10.10
