@@ -9,7 +9,7 @@ python2.6 python-setuptools python-dev \
 gfortran libatlas-base-dev \
 libxft2-dev libgtk2.0-dev python-gtk2-dev python-wxgtk2.8 \
 libusb-1.0 libglut3-dev libxmu-dev xvfb libgl1-mesa-dev libglu1-mesa-dev \
-libx11-dev
+libx11-dev lighttpd
 
 # Numpy
 set +e; git clone git://github.com/numpy/numpy.git numpy; set -e
