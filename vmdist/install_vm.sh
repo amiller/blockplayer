@@ -13,11 +13,10 @@ libx11-dev lighttpd
 
 # Numpy
 set +e; git clone git://github.com/numpy/numpy.git numpy; set -e
-set +e; ln -s /usr/local/lib/python2.6/dist-packages/numpy/core/include/numpy /usr/local/include/; set -e
+sudo ln -fs /usr/local/lib/python2.6/dist-packages/numpy/core/include/numpy /usr/local/include/
 pushd numpy; 
   python setup.py build && sudo python setup.py install
 popd
-
 
 # Scipy
 svn co http://svn.scipy.org/svn/scipy/trunk scipy
@@ -30,24 +29,8 @@ svn co https://matplotlib.svn.sourceforge.net/svnroot/matplotlib/trunk/matplotli
 pushd matplotlib
   python setup.py build && sudo python setup.py install
 popd
+set +e; mkdir ~/.matplotlib; set -e
 echo "backend: WX" >> ~/.matplotlib/matplotlibrc
-
-# Other python libraries
-sudo easy_install ipython nose PyOpenGL cython django
-
-# Libfreenect
-set +e; git clone https://github.com/OpenKinect/libfreenect.git; set -e
-set +e; sudo echo "/usr/local/lib/" > /etc/ld.so.conf.d/local.conf; set -e
-pushd libfreenect
-cmake . -DBUILD_PYTHON=On
-make
-sudo make install
-popd
-
-
-# BlockPlayer
-set +e; git clone git://github.com/amiller/blockplayer.git; set -e
-echo "export PYTHONPATH=\$PYTHONPATH:/home/user/blockplayer" >> ~/.bashrc
 
 
 # OpenCL
@@ -57,10 +40,44 @@ wget -N http://orwell.fiit.stuba.sk/~nou/ati-opencl-dev_2.3.deb
 sudo dpkg -i ati-opencl-runtime_2.3_i386.deb
 sudo dpkg -i ati-opencl-dev_2.3.deb
 
+
+# Other python libraries
+sudo easy_install ipython nose PyOpenGL cython django pyopencl
+
+# Libfreenect
+set +e; git clone https://github.com/OpenKinect/libfreenect.git; set -e
+set +e; sudo bash -c 'echo "/usr/local/lib/" > /etc/ld.so.conf.d/local.conf'; set -e
+sudo ldconfig
+pushd libfreenect
+cmake . -DBUILD_PYTHON=On
+make
+sudo make install
+popd
+
+
 # Opencv
 svn co https://code.ros.org/svn/opencv/trunk/opencv
+sudo ln -fs /usr/local/lib/python2.6/dist-packages /usr/local/lib/python2.6/site-packages
 pushd opencv
   cmake . -DBUILD_REFMAN=Off
   make
   sudo make install
+popd
+
+
+# BlockPlayer
+set +e; git clone git@github.com:amiller/blockplayer.git; set -e
+echo "export PYTHONPATH=\$PYTHONPATH:/home/user/blockplayer" >> ~/.bashrc
+source ~/.bashrc
+pushd blockplayer
+./build.sh
+pushd blockplayer
+./build.sh
+popd
+xvfb-run python makewww/make_normals.py
+xvfb-run python makewww/make_calib.py
+echo "Running lighttpd -Df lighttpd.conf"
+echo "View the results at localhost:8090"
+echo "(this won't return, ctrl+c if you like)"
+sudo lighttpd -Df lighttpd.conf
 popd
