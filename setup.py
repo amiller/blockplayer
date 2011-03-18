@@ -12,6 +12,6 @@ ext_modules=[Extension("blockplayer/glxcontext",
 
 setup(name='BlockPlayer',
       version='0.01',
-      packages=['blockplayer'],
+      packages=['blockplayer','blockplayer.visuals'],
       cmdclass={'build_ext': build_ext},
       ext_modules=ext_modules)

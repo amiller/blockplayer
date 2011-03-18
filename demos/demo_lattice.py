@@ -11,6 +11,12 @@ from blockplayer import lattice
 from blockplayer import flatrot
 
 
+from blockplayer.visuals.pointwindow import PointWindow
+global window
+if not 'window' in globals():
+    window = PointWindow(title='lattice2_opencl', size=(640,480))
+
+
 def once():
     dataset.advance()
     global depthL,depthR
@@ -66,11 +72,6 @@ def go():
 
 
 def update(X,Y,Z,UV=None,rgb=None,COLOR=None,AXES=None):
-    from blockplayer.visuals.pointwindow import PointWindow
-    global window
-    if not 'window' in globals():
-        window = PointWindow(title='lattice2_opencl', size=(640,480))
-
     global modelmat
     if not 'modelmat' in globals():
         return
