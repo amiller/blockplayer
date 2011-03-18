@@ -2,11 +2,11 @@ from distutils.core import setup
 from distutils.extension import Extension
 from Cython.Distutils import build_ext
 
-ext_modules=[Extension("blockplayer/glxcontext",
-                       ["glxcontext/glxcontext.pyx",
-                        "glxcontext/_glxcontext.c"],
+ext_modules=[Extension("blockplayer.glxcontext",
+                       ["glxcontext/_glxcontext.c",
+                       "glxcontext/glxcontext.pyx"],
                        libraries=['X11','GL']),
-             Extension("blockplayer/speedup_ctypes",
+             Extension("blockplayer.speedup_ctypes",
                        ["blockplayer/speedup_ctypes.c"])]
 
 
