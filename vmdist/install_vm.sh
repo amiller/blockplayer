@@ -68,7 +68,8 @@ popd
 
 # BlockPlayer
 set +e; git clone git@github.com:amiller/blockplayer.git; set -e
-echo "export PYTHONPATH=\$PYTHONPATH:/home/user/blockplayer" >> ~/.bashrc
+blockplayerpath=~/blockplayer
+echo "export PYTHONPATH=\$PYTHONPATH:${blockplayerpath}" >> ~/.bashrc
 source ~/.bashrc
 pushd blockplayer
 ./download.sh
