@@ -71,6 +71,7 @@ set +e; git clone git@github.com:amiller/blockplayer.git; set -e
 pushd blockplayer
 ./download.sh
 python setup.py build
+python setup.py build_ext --inplace
 sudo python setup.py install
 xvfb-run python makewww/make_normals.py
 xvfb-run python makewww/make_calib.py
