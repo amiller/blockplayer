@@ -68,15 +68,10 @@ popd
 
 # BlockPlayer
 set +e; git clone git@github.com:amiller/blockplayer.git; set -e
-blockplayerpath=~/blockplayer
-echo "export PYTHONPATH=\$PYTHONPATH:${blockplayerpath}" >> ~/.bashrc
-source ~/.bashrc
 pushd blockplayer
 ./download.sh
-./build.sh
-pushd blockplayer
-./build.sh
-popd
+python setup.py build
+sudo python setup.py install
 xvfb-run python makewww/make_normals.py
 xvfb-run python makewww/make_calib.py
 echo "Running lighttpd -Df lighttpd.conf"
