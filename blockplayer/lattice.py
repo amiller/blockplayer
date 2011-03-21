@@ -42,6 +42,17 @@ def project(X, Y, Z, mat):
 
 
 def lattice2_opencl(mat, init_t=None):
+  """
+  Returns:
+      modelmat: a 4x4 matrix
+
+  global state:
+      meanx,meany are the 'fixes' used to transform opencl.get_modelxyz()
+      into true model coordinates. The values of opencl.get_modelxyz() do
+      not reflect the correct value of modelmat. The modelmat includes a
+      correction by [-meanx, 0, -meany] that must be applied to modelxyz,
+      and passed as a parameter to opencl.computegridinds.
+  """
   from config import LW
   assert mat.shape == (4,4)
   assert mat.dtype == np.float32
@@ -57,8 +68,8 @@ def lattice2_opencl(mat, init_t=None):
   if init_t:
     global face
     X,Y,Z,face = np.rollaxis(opencl.get_modelxyz(),1)
-    cx,cz = np.rollaxis(np.frombuffer(np.array(face).data,
-                                      dtype='i2').reshape(-1,2),1)
+    cx,_,cz,_ = np.rollaxis(np.frombuffer(np.array(face).data,
+                                          dtype='i1').reshape(-1,2),1)
 
     modelmat[:,3] -= np.round([X[cz!=0].mean()/LW,
                                0,
@@ -73,10 +84,10 @@ def lattice2_opencl(mat, init_t=None):
     if np.isnan(a2): a2 = 0
     return a2
 
-  global meanx,meanz
-  cxcz,qx2qz2 = opencl.reduce_lattice2()
-  meanx = cmean(qx2qz2[:2],cxcz[0])
-  meanz = cmean(qx2qz2[2:],cxcz[1])
+  global meanx,meanz,cxyz_,qx2qz2
+  cxyz_,qx2qz2 = opencl.reduce_lattice2()
+  meanx = cmean(qx2qz2[:2],cxyz_[0])
+  meanz = cmean(qx2qz2[2:],cxyz_[2])
   modelmat[:,3] -= np.array([meanx, 0, meanz, 0])
 
   return modelmat
