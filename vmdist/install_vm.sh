@@ -58,6 +58,7 @@ popd
 
 # Opencv
 svn co https://code.ros.org/svn/opencv/trunk/opencv
+sudo mv /usr/local/lib/python2.6/site-packages /usr/local/lib/python2.6/backup.site-packages
 sudo ln -fsT /usr/local/lib/python2.6/dist-packages /usr/local/lib/python2.6/site-packages
 pushd opencv
   cmake . -DBUILD_REFMAN=Off
