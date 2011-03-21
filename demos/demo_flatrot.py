@@ -83,6 +83,7 @@ def once():
     pylab.waitforbuttonpress(0.005)
     ipbreak()
 
+
     if 0:  # I think this is from lattice
         _,_,_,face = np.rollaxis(opencl.get_modelxyz(),1)
         Xo,Yo,Zo,_ = np.rollaxis(opencl.get_xyz(),1)
