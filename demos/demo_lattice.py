@@ -2,6 +2,7 @@ import numpy as np
 import pylab
 from OpenGL.GL import *
 
+import blockplayer.visuals.pointwindow
 from blockplayer import dataset
 from blockplayer import config
 from blockplayer import preprocess
