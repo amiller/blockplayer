@@ -58,7 +58,7 @@ popd
 
 # Opencv
 svn co https://code.ros.org/svn/opencv/trunk/opencv
-sudo ln -fs /usr/local/lib/python2.6/dist-packages /usr/local/lib/python2.6/site-packages
+sudo ln -fsT /usr/local/lib/python2.6/dist-packages /usr/local/lib/python2.6/site-packages
 pushd opencv
   cmake . -DBUILD_REFMAN=Off
   make
@@ -68,15 +68,11 @@ popd
 
 # BlockPlayer
 set +e; git clone git@github.com:amiller/blockplayer.git; set -e
-blockplayerpath=~/blockplayer
-echo "export PYTHONPATH=\$PYTHONPATH:${blockplayerpath}" >> ~/.bashrc
-source ~/.bashrc
 pushd blockplayer
 ./download.sh
-./build.sh
-pushd blockplayer
-./build.sh
-popd
+python setup.py build
+python setup.py build_ext --inplace
+sudo python setup.py install
 xvfb-run python makewww/make_normals.py
 xvfb-run python makewww/make_calib.py
 echo "Running lighttpd -Df lighttpd.conf"
