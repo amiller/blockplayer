@@ -25,6 +25,11 @@ def advance(skip=1):
         depthR = np.load(f)
 
 
+def setup_opencl():
+    opencl.setup_kernel((config.bgL['KK'],config.bgL['Ktable']),
+                        (config.bgR['KK'],config.bgR['Ktable']))
+
+
 def load_dataset(pathname):
     global current_path, frame_num
 
@@ -33,8 +38,7 @@ def load_dataset(pathname):
 
     # Load the config
     config.load(current_path)
-    opencl.setup_kernel((config.bgL['KK'],config.bgL['Ktable']),
-                        (config.bgR['KK'],config.bgR['Ktable']))
+    setup_opencl()
 
     frame_num = 0
 

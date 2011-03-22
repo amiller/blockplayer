@@ -49,6 +49,7 @@ def once():
     _,_,_,face = np.rollaxis(opencl.get_modelxyz(),1)
     Xo,Yo,Zo,_ = np.rollaxis(opencl.get_xyz(),1)
 
+    global cx,cy,cz
     cx,cy,cz,_ = np.rollaxis(np.frombuffer(np.array(face).data,
                                            dtype='i1').reshape(-1,4),1)
     R,G,B = [np.abs(_).astype('f') for _ in cx,cy,cz]
