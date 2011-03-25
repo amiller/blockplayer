@@ -61,10 +61,8 @@ class CameraWindow(Window):
     glLoadIdentity()
     R = np.cross(self.upvec, [0,0,1])
     R /= np.sqrt(np.dot(R,R))
-
     glScale(self.zoomdist,self.zoomdist,1)
-    glTranslate(0, 0, -(2.5 / self.zoomdist))
-
+    glTranslate(0, 0,-2.5)
     glRotatef(self.rotangles[0], *R)
     glRotatef(self.rotangles[1], *self.upvec)
     glTranslate(*-self.lookat)
@@ -73,3 +71,4 @@ class CameraWindow(Window):
     self.set_camera()
     glClearColor(*self.clearcolor)
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
+

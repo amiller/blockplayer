@@ -48,16 +48,17 @@ sudo easy_install ipython nose PyOpenGL cython django pyopencl
 # Libfreenect
 set +e; git clone https://github.com/OpenKinect/libfreenect.git; set -e
 set +e; sudo bash -c 'echo "/usr/local/lib/" > /etc/ld.so.conf.d/local.conf'; set -e
-sudo ldconfig
 pushd libfreenect
 cmake . -DBUILD_PYTHON=On
 make
 sudo make install
 popd
+sudo ldconfig
 
 
 # Opencv
 svn co https://code.ros.org/svn/opencv/trunk/opencv
+sudo mv /usr/local/lib/python2.6/site-packages /usr/local/lib/python2.6/backup.site-packages
 sudo ln -fsT /usr/local/lib/python2.6/dist-packages /usr/local/lib/python2.6/site-packages
 pushd opencv
   cmake . -DBUILD_REFMAN=Off

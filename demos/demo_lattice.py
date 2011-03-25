@@ -15,7 +15,7 @@ from blockplayer import flatrot
 from blockplayer.visuals.pointwindow import PointWindow
 global window
 if not 'window' in globals():
-    window = PointWindow(title='lattice2_opencl', size=(640,480))
+    window = PointWindow(title='demo_lattice', size=(640,480))
 
 
 def once():
@@ -49,9 +49,10 @@ def once():
     _,_,_,face = np.rollaxis(opencl.get_modelxyz(),1)
     Xo,Yo,Zo,_ = np.rollaxis(opencl.get_xyz(),1)
 
-    cx,cz = np.rollaxis(np.frombuffer(np.array(face).data,
-                                      dtype='i2').reshape(-1,2),1)
-    R,G,B = np.abs(cx).astype('f'),cx.astype('f')*0,np.abs(cz).astype('f')
+    global cx,cy,cz
+    cx,cy,cz,_ = np.rollaxis(np.frombuffer(np.array(face).data,
+                                           dtype='i1').reshape(-1,4),1)
+    R,G,B = [np.abs(_).astype('f') for _ in cx,cy,cz]
 
     update(Xo,Yo,Zo,COLOR=(R,G,B,R*0+1))
 

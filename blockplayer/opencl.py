@@ -221,10 +221,9 @@ kernel void lattice2_compute(
 
   // Threshold the normals and pack it into one number as a label
   const float CLIM = 0.9486;
-  float2 dxz = dxyz_.xz;
-  //float2 cxz = color_axis(dxyz_).xz;
-  float2 cxz = (float2)-1 + step(dxz,(float2)(-CLIM)) + step(dxz,(float2)(CLIM));
-  float label = as_float((short2)(cxz.s0,cxz.s1));
+  float4 cxyz_ = (float4)-1 + step(dxyz_,(float4)(-CLIM)) +
+                            step(dxyz_,(float4)(CLIM));
+  float label = as_float(convert_char4(cxyz_));
   XYZ.w = label;
 
   // Finally do the trig functions
@@ -232,18 +231,18 @@ kernel void lattice2_compute(
   qsin = sincos(XYZ.xz * modulo * TAU, &qcos);
   float2 qx = (float2)(qcos.x,qsin.x);
   float2 qz = (float2)(qcos.y,qsin.y);
-  if (cxz.s0 == 0) qx = (float2)(0);
-  if (cxz.s1 == 0) qz = (float2)(0);
+  if (cxyz_.x == 0) qx = (float2)(0);
+  if (cxyz_.z == 0) qz = (float2)(0);
 
   // output structure: 
   modelxyz[index] = XYZ;
-  face_label[index] = (float4)(cxz.s0!=0,cxz.s1!=0,0,0);
+  face_label[index] = (float4)(1.0) - convert_float4(isnotequal(cxyz_,0));
   qx2z2[index] = (float4)(qx,qz);
 }
 
 
 kernel void gridinds_compute(
-  global uchar4 *gridinds,
+  global char4 *gridinds,
   global const float4 *modelxyz,
   const float xfix, const float zfix, 
   const float LW, const float LH,
@@ -252,20 +251,19 @@ kernel void gridinds_compute(
 {
   unsigned int index = get_global_id(0);
   float4 xyzf = modelxyz[index];
-  short2 cxz = as_short2(xyzf.w);
-  float4 f1 = (float4)(cxz.s0*.5,0,cxz.s1*.5,0);
+  char4 cxyz_= as_char4(xyzf.w);
+  float4 f1 = convert_float4(cxyz_) * (float4)(0.5);
   float4 fix = (float4)(xfix,0,zfix,0);
   
   float4 mod = (float4)(LW,LH,LW,1);
   
-  uchar4 occ = convert_uchar4(floor(-gridmin + (xyzf-fix)/mod + f1));
-  uchar4 vac = occ - (uchar4)(cxz.s0,0,cxz.s1,0);
-  occ.w = cxz.s0 + cxz.s1;
+  char4 occ = convert_char4(floor(-gridmin + (xyzf-fix)/mod + f1));
+  char4 vac = occ - cxyz_;
+  occ.w = cxyz_.x + cxyz_.y + cxyz_.z;
   vac.w = occ.w;
   gridinds[2*index+0] = occ;
   gridinds[2*index+1] = vac;
 }
-
 """
 def setup_kernel(matsL=None, matsR=None):
     if matsL is None:
@@ -387,9 +385,14 @@ def get_modelxyz():
   model   = np.empty((lengthL+lengthR,4),'f')
   cl.enqueue_read_buffer(queue, model_buf, model).wait()
   return model
+
+def get_face():
+    cxyz_ = np.empty((lengthL+lengthR,4),'f')
+    cl.enqueue_read_buffer(queue, face_buf, cxyz_).wait()
+    return cxyz_
   
 def get_gridinds():
-  gridinds = np.empty((lengthL+lengthR,2,4), 'u1')
+  gridinds = np.empty((lengthL+lengthR,2,4), 'i1')
   cl.enqueue_read_buffer(queue, gridinds_buf, gridinds).wait()
   return gridinds
 
@@ -469,6 +472,6 @@ def reduce_lattice2():
     reduce_buf, reduce_scratch, 
     face_buf, np.int32(lengthL+lengthR))
   cl.enqueue_read_buffer(queue, reduce_buf, sums).wait()
-  cxcz = sums[:2,:].sum(0)
+  cxcz = sums.sum(0)
 
   return cxcz,qxqz

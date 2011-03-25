@@ -20,7 +20,7 @@ from blockplayer import table_calibration as table_calibration
 out_path = os.path.join('www','calib')
 if not 'ds' in globals(): ds = None
 
-import glxcontext
+from blockplayer import glxcontext
 glxcontext.init()
 import sys
 sys.stdout.write("GL Version String: ")

@@ -44,7 +44,7 @@ def normals_opencl(depth, mask=None, rect=((0,0),(640,480)), win=7, offset=0):
   assert depth.dtype == np.float32
   depth = depth[t:b,l:r]
   #depth[depth==2047] = -1e8
-  
+
   if mask is None:
     mask = np.ones((b-t,r-l),'bool')
 
