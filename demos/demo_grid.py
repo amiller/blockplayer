@@ -2,7 +2,6 @@ import numpy as np
 import pylab
 from OpenGL.GL import *
 
-import blockplayer.visuals.pointwindow
 from blockplayer import dataset
 from blockplayer import config
 from blockplayer import preprocess
@@ -40,36 +39,53 @@ def once():
                             np.array(from_rect(maskR,rectR)), rectR,
                             6)
 
-    mat = np.eye(4,dtype='f')
-    mat[:3,:3] = flatrot.flatrot_opencl()
+    global modelmat
 
-    mat = lattice.lattice2_opencl(mat)
+    mat = np.eye(4,dtype='f')
+    if modelmat is None:
+        mat[:3,:3] = flatrot.flatrot_opencl()
+        mat = lattice.lattice2_opencl(mat)
+    else:
+        mat = modelmat.copy()
+        mat[:3,:3] = flatrot.flatrot_opencl(modelmat[:3,:])
+        mat = lattice.lattice2_opencl(mat)
 
     global face, Xo, Yo, Zo
     _,_,_,face = np.rollaxis(opencl.get_modelxyz(),1)
     Xo,Yo,Zo,_ = np.rollaxis(opencl.get_xyz(),1)
 
+    global cx,cy,cz
     cx,cy,cz,_ = np.rollaxis(np.frombuffer(np.array(face).data,
                                            dtype='i1').reshape(-1,4),1)
     R,G,B = [np.abs(_).astype('f') for _ in cx,cy,cz]
-    #update(Xo,Yo,Zo,COLOR=(R,G,B,R*0+1))
+    update(Xo,Yo,Zo,COLOR=(R,G,B,R*0+1))
 
-    global modelmat
-    modelmat = mat
-
-    grid.add_votes_opencl(lattice.meanx, lattice.meanz)
+    #grid.add_votes_opencl(lattice.meanx, lattice.meanz)
+    grid.add_votes_numpy(lattice.meanx, lattice.meanz, depthL, depthR)
+    modelmat = lattice.modelmat
 
     window.clearcolor = [1,1,1,0]
     window.Refresh()
     pylab.waitforbuttonpress(0.005)
+    import sys
+    sys.stdout.flush()
 
 
 def resume():
     while 1: once()
 
 
-def go():
+def start(frame_num=0):
+    global modelmat
+    modelmat = None
+    grid.initialize()
     dataset.load_random_dataset()
+    while dataset.frame_num < frame_num:
+        dataset.advance()
+
+
+def go(frame_num=0):
+    start(frame_num)
     resume()
 
 
@@ -99,7 +115,98 @@ def update(X,Y,Z,UV=None,rgb=None,COLOR=None,AXES=None):
 
     @window.event
     def post_draw():
-        pass
+        from blockplayer.config import LW,LH
+        from blockplayer.grid import solid_blocks, shadow_blocks, wire_blocks
+        if not 'modelmat' in lattice.__dict__: return
+        glPolygonOffset(1.0,0.2)
+        glEnable(GL_POLYGON_OFFSET_FILL)
+
+        # Draw the gray table
+        if 1:
+            glBegin(GL_QUADS)
+            glColor(0.6,0.7,0.7,1)
+            for x,y,z in config.bgL['boundptsM']:
+                glVertex(x,y,z)
+            glEnd()
+
+        glPushMatrix()
+        glMultMatrixf(np.linalg.inv(lattice.modelmat).transpose())
+        glScale(LW,LH,LW)
+
+        #glEnable(GL_LINE_SMOOTH)
+        #glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA)
+        #for (x,y,z),cind in zip(legos,legocolors):
+
+        glPushMatrix()
+        glTranslate(*grid.bounds[0])
+
+        # Draw the carved out pixels
+        glColor(1.0,0.1,0.1,0.2)
+        glEnableClientState(GL_VERTEX_ARRAY)
+
+        if 0 and wire_blocks:
+            carve_verts, _, line_inds, _ = wire_blocks
+            glVertexPointeri(carve_verts)
+            glDrawElementsui(GL_LINES, line_inds)
+
+        if 1 and shadow_blocks:
+            carve_verts, _, line_inds, quad_inds = shadow_blocks
+            glVertexPointeri(carve_verts)
+            #glDrawElementsui(GL_QUADS, quad_inds)
+            glColor(1,1,0)
+            glDrawElementsui(GL_LINES, line_inds)
+            glDisableClientState(GL_VERTEX_ARRAY)
+
+        #  Draw the filled in surface faces of the legos
+        # verts, norms, line_inds, quad_inds =
+            #grid_vertices((vote_grid>30)&(carve_grid<30))
+        if 1 and solid_blocks:
+            verts, norms, line_inds, quad_inds = solid_blocks
+            glEnableClientState(GL_VERTEX_ARRAY)
+            glVertexPointeri(verts)
+            # glColor(0.3,0.3,0.3)
+            glEnableClientState(GL_COLOR_ARRAY)
+            glColorPointerf(np.abs(norms))
+            glDrawElementsui(GL_QUADS, quad_inds)
+            glDisableClientState(GL_COLOR_ARRAY)
+            glColor(1,1,1,1)
+            #glColor(0.1,0.1,0.1)
+            glDrawElementsui(GL_LINES, line_inds)
+            glDisableClientState(GL_VERTEX_ARRAY)
+        glPopMatrix()
+
+        # Draw the shadow blocks (occlusions)
+        glDisable(GL_POLYGON_OFFSET_FILL)
+
+        # Draw the outlines for the lego blocks
+        glColor(1,1,1,0.8)
+
+        glDisable(GL_LIGHTING)
+        glDisable(GL_COLOR_MATERIAL)
+
+        # Draw the axes for the model coordinate space
+        glLineWidth(3)
+        glBegin(GL_LINES)
+        glColor3f(1,0,0); glVertex3f(0,0,0); glVertex3f(1,0,0)
+        glColor3f(0,1,0); glVertex3f(0,0,0); glVertex3f(0,1,0)
+        glColor3f(0,0,1); glVertex3f(0,0,0); glVertex3f(0,0,1)
+        glEnd()
+
+        # Draw a grid for the model coordinate space
+        if 1:
+            glLineWidth(1)
+            glBegin(GL_LINES)
+            GR = 18
+            glColor3f(0.2,0.2,0.4)
+            for j in range(0,1):
+                for i in range(-GR,GR+1):
+                    glVertex(i,j,-GR); glVertex(i,j,GR)
+                    glVertex(-GR,j,i); glVertex(GR,j,i)
+            glEnd()
+            glPopMatrix()
+            pass
 
 if 'window' in globals():
     window.Refresh()
