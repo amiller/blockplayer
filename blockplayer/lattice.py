@@ -82,12 +82,12 @@ def lattice2_opencl(mat, init_t=None):
     x,y = mxy / c
     a2 = np.arctan2(y,x) / (2*np.pi) * LW
     if np.isnan(a2): a2 = 0
-    return a2
+    return a2, np.sqrt(x**2 + y**2)
 
-  global meanx,meanz,cxyz_,qx2qz2
+  global meanx,meanz,cxyz_,qx2qz2, dmx, dmy
   cxyz_,qx2qz2 = opencl.reduce_lattice2()
-  meanx = cmean(qx2qz2[:2],cxyz_[0])
-  meanz = cmean(qx2qz2[2:],cxyz_[2])
+  meanx,dmx = cmean(qx2qz2[:2],cxyz_[0])
+  meanz,dmy = cmean(qx2qz2[2:],cxyz_[2])
   modelmat[:,3] -= np.array([meanx, 0, meanz, 0])
 
   return modelmat

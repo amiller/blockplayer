@@ -50,6 +50,8 @@ def once():
         mat[:3,:3] = flatrot.flatrot_opencl(modelmat[:3,:])
         mat = lattice.lattice2_opencl(mat)
 
+    print 'flatrot.dm:', flatrot.dm, 'lat.dmx:', lattice.dmx, 'lat.dmy:', lattice.dmy
+
     global face, Xo, Yo, Zo
     _,_,_,face = np.rollaxis(opencl.get_modelxyz(),1)
     Xo,Yo,Zo,_ = np.rollaxis(opencl.get_xyz(),1)
@@ -66,7 +68,7 @@ def once():
 
     window.clearcolor = [1,1,1,0]
     window.Refresh()
-    pylab.waitforbuttonpress(0.005)
+    pylab.waitforbuttonpress(0.01)
     import sys
     sys.stdout.flush()
 

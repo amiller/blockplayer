@@ -26,12 +26,16 @@ def flatrot_opencl(guessmat=None, noshow=None):
   opencl.compute_flatrot(mat.astype('f'))
   sq = opencl.reduce_flatrot()
 
+
   qqx = sq[0] / sq[3]
   qqz = sq[2] / sq[3]
   angle = np.arctan2(qqz,qqx)/4
   q0 = np.cos(angle) * v0 + np.sin(angle) * v2
   q0 /= np.sqrt(np.dot(q0,q0))
   q2 = np.cross(q0,v1)
+
+  global dm
+  dm = np.sqrt(qqx**2 + qqz**2)
 
   # Build an output matrix out of the components
   mat = np.vstack((q0,v1,q2))

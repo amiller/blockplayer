@@ -120,7 +120,10 @@ def depth_sample(modelmat, depth, side='left'):
     w = x*mat[3,0] + y*mat[3,1] + dref*mat[3,2] + mat[3,3]
     drefmet = z/w
 
-    return x,y,d,dref, (d<2047)&(dmet<drefmet-(config.LH*2+config.LW)/3)
+    length = np.sqrt((config.LH**2+
+                      config.LW**2+
+                      config.LH**2))
+    return x,y,d,dref, (d<2047)&(dmet<drefmet-length)
 
 
 def add_votes_numpy(xfix, zfix, depthL, depthR):
@@ -203,9 +206,10 @@ def add_votes_numpy(xfix, zfix, depthL, depthR):
                                        occH.ctypes.data, vacH.ctypes.data, 
                                        sums.ctypes.data_as(PTR(c_float)),
                                        wx, wy, wz);
-    carve_grid = np.maximum(vacH, carve_grid)
-    vote_grid = np.maximum(occH, vote_grid)
-    vote_grid[carve_grid>30] = 0
+    if lattice.dmx >= 0.1 and lattice.dmy >= 0.1:
+        carve_grid = np.maximum(vacH, carve_grid)
+        vote_grid = np.maximum(occH, vote_grid)
+        vote_grid[carve_grid>30] = 0
     refresh()
 
   
