@@ -4,3 +4,7 @@
 *.so
 www/
 data/
+out.*
+build/
+datasets*
+pendingrewrite/
