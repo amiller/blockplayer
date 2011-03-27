@@ -50,7 +50,7 @@ def normal_maker(name, mat, matw, matr):
     return (float4)(dot(%s,r1),dot(%s,r1),dot(%s,r1),0);
   }
 
-  
+
   // Main Kernel code
   kernel void normal_compute_%s(
   	global float4 *output,
@@ -130,8 +130,7 @@ inline float4 color_axis(float4 n)
   return cm;
 }
 
-%s
-
+// Normal kernels go here
 %s
 
 kernel void flatrot_compute(
@@ -153,7 +152,7 @@ kernel void flatrot_compute(
   float qz = 4*dz*dx*dx*dx - 4*dz*dz*dz * dx;
   float qx = dx*dx*dx*dx - 6*dx*dx*dz*dz + dz*dz*dz*dz;
   
-  if (dy<0.3) output[index] = (float4)(qx, dy,qz, 1);  
+  if (dy<0.3) output[index] = (float4)(qx, 0,qz, 1);  
   else        output[index] = (float4)(0,0,0,0);
 }
 
@@ -221,10 +220,9 @@ kernel void lattice2_compute(
 
   // Threshold the normals and pack it into one number as a label
   const float CLIM = 0.9486;
-  float4 cxyz_ = (float4)-1 + step(dxyz_,(float4)(-CLIM)) +
-                            step(dxyz_,(float4)(CLIM));
-  float label = as_float(convert_char4(cxyz_));
-  XYZ.w = label;
+  float4 cxyz_ = (float4)(-1) + step(dxyz_,(float4)(-CLIM)) +
+                                step(dxyz_,(float4)(CLIM));
+  XYZ.w = as_float(convert_char4(cxyz_));
 
   // Finally do the trig functions
   float2 qsin, qcos;
@@ -236,7 +234,7 @@ kernel void lattice2_compute(
 
   // output structure: 
   modelxyz[index] = XYZ;
-  face_label[index] = (float4)(1.0) - convert_float4(isnotequal(cxyz_,0));
+  face_label[index] = -convert_float4(isnotequal(cxyz_,0));
   qx2z2[index] = (float4)(qx,qz);
 }
 
@@ -251,38 +249,33 @@ kernel void gridinds_compute(
 {
   unsigned int index = get_global_id(0);
   float4 xyzf = modelxyz[index];
-  char4 cxyz_= as_char4(xyzf.w);
-  float4 f1 = convert_float4(cxyz_) * (float4)(0.5);
-  float4 fix = (float4)(xfix,0,zfix,0);
+  float4 cxyz_ = convert_float4(as_char4(xyzf.w));
   
+  float4 f1 = cxyz_ * 0.5;
+  float4 fix = (float4)(xfix,0,zfix,0);  
   float4 mod = (float4)(LW,LH,LW,1);
   
-  char4 occ = convert_char4(floor(-gridmin + (xyzf-fix)/mod + f1));
-  char4 vac = occ - cxyz_;
-  occ.w = cxyz_.x + cxyz_.y + cxyz_.z;
+  float4 occ = floor(-gridmin + (xyzf-fix)/mod + f1);
+  float4 vac = occ - cxyz_;
+  occ.w = dot(cxyz_, (float4)(1,2,4,0));
   vac.w = occ.w;
-  gridinds[2*index+0] = occ;
-  gridinds[2*index+1] = vac;
+  gridinds[2*index+0] = convert_char4(occ);
+  gridinds[2*index+1] = convert_char4(vac);
 }
 """
-def setup_kernel(matsL=None, matsR=None):
-    if matsL is None:
-        matsL = (calibkinect.xyz_matrix(), np.eye(4))
-    if matsR is None:
-        matsR = (calibkinect.xyz_matrix(), np.eye(4))
 
-    KKL, RTL = matsL
-    KKR, RTR = matsR
+
+def setup_kernel(mats=None):
+    if mats is None:
+        mats = (calibkinect.xyz_matrix(), np.eye(4))
+
+    KK, RT = mats
 
     kernel_normals = kernel_normals_template % (
-        normal_maker('LEFT',
-                     np.linalg.inv(KKL).transpose(),
-                     np.dot(RTL, KKL),
-                     np.linalg.inv(RTL).transpose()),
-        normal_maker('RIGHT',
-                     np.linalg.inv(KKR).transpose(),
-                     np.dot(RTR, KKR),
-                     np.linalg.inv(RTR).transpose())
+        normal_maker('ONE',
+                     np.linalg.inv(KK).transpose(),
+                     np.dot(RT, KK),
+                     np.linalg.inv(RT).transpose()),
         )
     
     global program
@@ -295,8 +288,7 @@ def setup_kernel(matsL=None, matsR=None):
         return self
     cl.Kernel.bullshit = bullshit
     program.flatrot_compute = program.flatrot_compute.bullshit()
-    program.normal_compute_LEFT = program.normal_compute_LEFT.bullshit()
-    program.normal_compute_RIGHT = program.normal_compute_RIGHT.bullshit()
+    program.normal_compute_ONE = program.normal_compute_ONE.bullshit()
     program.lattice2_compute = program.lattice2_compute.bullshit()
     program.float4_sum = program.float4_sum.bullshit()
     program.gridinds_compute = program.gridinds_compute.bullshit()
@@ -330,36 +322,27 @@ reduce_buf    = cl.Buffer(context, mf.READ_WRITE, 8*4*100)
 reduce_scratch = cl.LocalMemory(64*8*4)
 
 
-def set_rect(_rectL, _rectR):
-  global rectL, rectR
-  rectL = _rectL
-  rectR = _rectR
-  (L1,T1),(R1,B1) = rectL;
-  (L2,T2),(R2,B2) = rectR;
-  global lengthL, lengthR
-  lengthL = (B1-T1)*(R1-L1)
-  lengthR = (B2-T2)*(R2-L2)
-  assert lengthL + lengthR <= 480*640
+def set_rect(_rect):
+  global rect
+  rect = _rect
+  (L,T),(R,B) = rect;
+  global length
+  length = (B-T)*(R-L)
+  assert length <= 480*640
   
-def load_mask(mask, spot):
-  assert spot=='LEFT' or spot=='RIGHT'
-  rect = rectL if spot=='LEFT' else rectR
-  offset = 0 if spot=='LEFT' else lengthL
+def load_mask(mask):
   (L,T),(R,B) = rect
   assert mask.dtype == np.bool
   assert mask.shape[0] == B-T 
   assert mask.shape[1] == R-L
-  return cl.enqueue_write_buffer(queue, mask_buf, mask, offset*1, is_blocking=False)
+  return cl.enqueue_write_buffer(queue, mask_buf, mask, is_blocking=False)
 
-def load_filt(filt, spot):
-  assert spot=='LEFT' or spot=='RIGHT'
-  rect = rectL if spot=='LEFT' else rectR
-  offset = 0 if spot=='LEFT' else lengthL
+def load_filt(filt):
   (L,T),(R,B) = rect
   assert filt.dtype == np.float32
   assert filt.shape[0] == B-T 
   assert filt.shape[1] == R-L
-  return cl.enqueue_write_buffer(queue, filt_buf, filt, offset*4, is_blocking=False)
+  return cl.enqueue_write_buffer(queue, filt_buf, filt, is_blocking=False)
   
 def get_xyz():
   xyz = np.empty((lengthL+lengthR,4),'f')
@@ -367,44 +350,52 @@ def get_xyz():
   return xyz
   
 def get_normals():
-  (L1,T1),(R1,B1) = rectL
-  (L2,T2),(R2,B2) = rectR
-  
-  normals = np.empty((lengthL+lengthR,4), 'f')
+  (L,T),(R,B) = rect
+  normals = np.empty((length,4), 'f')
   cl.enqueue_read_buffer(queue, normals_buf, normals).wait()
-  
-  return (normals[:lengthL,:].reshape(T1-B1,R1-L1,4),
-          normals[lengthL:,:].reshape(T2-B2,R2-L2,4))
+  return normals.reshape(T-B,R-L,4)
 
 def get_flatrot():
-  qxdyqz = np.empty((lengthL+lengthR,4),'f')
+  qxdyqz = np.empty((length,4),'f')
   cl.enqueue_read_buffer(queue, qxdyqz_buf, qxdyqz).wait()
   return qxdyqz
   
 def get_modelxyz():
-  model   = np.empty((lengthL+lengthR,4),'f')
+  model   = np.empty((length,4),'f')
   cl.enqueue_read_buffer(queue, model_buf, model).wait()
   return model
 
-def get_face():
-    cxyz_ = np.empty((lengthL+lengthR,4),'f')
-    cl.enqueue_read_buffer(queue, face_buf, cxyz_).wait()
-    return cxyz_
+def get_face_debug():
+    (L,T),(R,B) = rect
   
+    face = np.empty((length,4), 'f')
+    cl.enqueue_read_buffer(queue, face_buf, face).wait()
+
+    _,_,_,face_ = np.rollaxis(get_modelxyz(),1)
+    cxyz_ = np.frombuffer(np.array(face_).data,
+                          dtype='i1').reshape(-1,4)
+
+    return (face.reshape(T-B,R-L,4),         
+            cxyz_.reshape(T-B,R-L,4))
+       
+
+def get_gridinds_debug():
+    (L,T),(R,B) = rect
+    gridinds = np.empty((length,2,4), 'i1')
+    cl.enqueue_read_buffer(queue, gridinds_buf, gridinds).wait()
+    return gridinds.reshape(T-B,R-L,2,4)
+
 def get_gridinds():
-  gridinds = np.empty((lengthL+lengthR,2,4), 'i1')
+  gridinds = np.empty((length,2,4), 'i1')
   cl.enqueue_read_buffer(queue, gridinds_buf, gridinds).wait()
   return gridinds
 
-def compute_normals(spot):
-  assert spot=='LEFT' or spot=='RIGHT'
-  rect = rectL if spot=='LEFT' else rectR
-  offset = 0 if spot=='LEFT' else lengthL
+def compute_normals():
   (L,T),(R,B) = rect; bounds = np.array((L,T,R,B),'f')
 
-  kernel = program.normal_compute_LEFT if spot =='LEFT' else program.normal_compute_RIGHT
+  kernel = program.normal_compute_ONE
   evt = kernel(queue, (R-L,B-T), None, normals_buf, xyz_buf,
-        filt_buf, mask_buf, bounds, np.int32(offset))
+        filt_buf, mask_buf, bounds, np.int32(0))  # offset unused (0)
   #import main
   #if main.WAIT_COMPUTE: evt.wait()
   return evt
@@ -412,9 +403,10 @@ def compute_normals(spot):
 def compute_flatrot(mat):
   assert mat.dtype == np.float32
   assert mat.shape == (3,4)
+
   def f(m): return m.astype('f')
   
-  evt = program.flatrot_compute(queue, (lengthL+lengthR,), None,
+  evt = program.flatrot_compute(queue, (length,), None,
     qxdyqz_buf, normals_buf, f(mat[0,:]), f(mat[1,:]), f(mat[2,:]))
   
   #import main
@@ -424,9 +416,10 @@ def compute_flatrot(mat):
 def compute_lattice2(modelmat, modulo):
   assert modelmat.dtype == np.float32
   assert modelmat.shape == (3,4)
+
   def f(m): return m.astype('f')
   
-  evt = program.lattice2_compute(queue, (lengthL+lengthR,), None, 
+  evt = program.lattice2_compute(queue, (length,), None, 
     face_buf, qxqz_buf, model_buf,
     normals_buf, xyz_buf, np.float32(1.0/modulo),
     f(modelmat[0,:]), f(modelmat[1,:]), f(modelmat[2,:]))
@@ -441,7 +434,7 @@ def compute_gridinds(xfix, zfix, LW, LH, gridmin, gridmax):
   assert gridmin.shape == (4,)
   assert gridmin.dtype == np.float32
   assert gridmin[3] == 0
-  evt = program.gridinds_compute(queue, (lengthL+lengthR,), None,
+  evt = program.gridinds_compute(queue, (length,), None,
     gridinds_buf, model_buf,
     np.float32(xfix), np.float32(zfix), 
     np.float32(LW),   np.float32(LH), 
@@ -455,7 +448,7 @@ def reduce_flatrot():
   sums = np.empty((8,4),'f')  
   evt = program.float4_sum(queue, (64*8,), (64,), 
     reduce_buf, reduce_scratch, 
-    qxdyqz_buf, np.int32(lengthL+lengthR))
+    qxdyqz_buf, np.int32(length))
   cl.enqueue_read_buffer(queue, reduce_buf, sums).wait()
   return sums.sum(0)
     
@@ -464,13 +457,13 @@ def reduce_lattice2():
   
   evt = program.float4_sum(queue, (64*8,), (64,), 
     reduce_buf, reduce_scratch, 
-    qxqz_buf, np.int32(lengthL+lengthR))
+    qxqz_buf, np.int32(length))
   cl.enqueue_read_buffer(queue, reduce_buf, sums).wait()
   qxqz = sums.sum(0)  
   
   evt = program.float4_sum(queue, (64*8,), (64,), 
     reduce_buf, reduce_scratch, 
-    face_buf, np.int32(lengthL+lengthR))
+    face_buf, np.int32(length))
   cl.enqueue_read_buffer(queue, reduce_buf, sums).wait()
   cxcz = sums.sum(0)
 

@@ -12,8 +12,7 @@ def load(dir_path):
 
 def save(dir_path):
     with open('%s/config/config.pkl' % dir_path,'w') as f:
-        pickle.dump(dict(bgL=bgL,
-                         bgR=bgR,
+        pickle.dump(dict(bg=bg,
                          LH=LH,
                          LW=LW,
                          ), f)

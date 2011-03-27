@@ -37,7 +37,7 @@ def refresh():
     global solid_blocks, shadow_blocks, wire_blocks
     #solid_blocks = carve.grid_vertices((occH>10))
     #shadow_blocks = carve.grid_vertices((vacH>10))
-    solid_blocks = carve.grid_vertices((carve_grid<40)&(vote_grid>30))
+    solid_blocks = carve.grid_vertices((carve_grid<30)&(vote_grid>30))
     shadow_blocks = carve.grid_vertices((carve_grid>=30)&(vote_grid>30))
     wire_blocks = carve.grid_vertices((carve_grid>10))
 
@@ -100,10 +100,13 @@ def depth_sample(modelmat, depth, side='left'):
 
     # Find the reference depth for each voxel, and the sampled depth
     x,y,dref = depth_inds(modelmat, side)
+    depth_ = depth.astype('f')
+    depth_[depth==2047] = -np.inf
     import scipy.ndimage
-    d = scipy.ndimage.map_coordinates(depth, (y,x), order=0,
+    d = scipy.ndimage.map_coordinates(depth_, (y,x), order=0,
                                       prefilter=False,
-                                      cval=2047)
+                                      cval=-np.inf)
+    
     #d = depth[np.round(x).astype('i'),np.round(y).astype('i')]
 
     X,Y,Z = np.mgrid[gridmin[0]:gridmax[0],
@@ -122,8 +125,13 @@ def depth_sample(modelmat, depth, side='left'):
 
     length = np.sqrt((config.LH**2+
                       config.LW**2+
-                      config.LH**2))
-    return x,y,d,dref, (d<2047)&(dmet<drefmet-length)
+                      config.LH**2))/2
+
+    global checkleft, checkdepth
+    if side == 'left':
+        checkdepth = depth_
+        checkleft = x,y,d,dref, (d>0)&(dmet<drefmet-length)&(vote_grid>30)
+    return x,y,d,dref, (d>0)&(dmet<drefmet-length)
 
 
 def add_votes_numpy(xfix, zfix, depthL, depthR):
@@ -181,6 +189,7 @@ def add_votes_numpy(xfix, zfix, depthL, depthR):
     #vacH *= 0
     vacH += 60 * (carveL | carveR)
 
+    # Correct for drift
     (bx,_,bz),err = drift_correction(occH, vacH)
     if (bx,bz) != (0,0):
         lattice.modelmat[0,3] += bx*config.LW
@@ -206,10 +215,22 @@ def add_votes_numpy(xfix, zfix, depthL, depthR):
                                        occH.ctypes.data, vacH.ctypes.data, 
                                        sums.ctypes.data_as(PTR(c_float)),
                                        wx, wy, wz);
-    if lattice.dmx >= 0.1 and lattice.dmy >= 0.1:
+
+    # Only update the persistent model if we satisfy a quality condition
+    if lattice.dmx >= 0.8 and lattice.dmy >= 0.8 and \
+       lattice.countx > 200 and lattice.county >= 200:
         carve_grid = np.maximum(vacH, carve_grid)
         vote_grid = np.maximum(occH, vote_grid)
         vote_grid[carve_grid>30] = 0
+
+    # Recenter the voxel grid
+    if np.any(vote_grid>30):
+        mean = -(gridmin[:3] + \
+                np.floor(np.mean(np.nonzero(vote_grid>30),1))).astype('i')
+        lattice.modelmat[:3,3] += [mean[0]*config.LW, 0, mean[2]*config.LW]
+        carve_grid = np.roll(np.roll(carve_grid, mean[0], 0), mean[2], 2)
+        vote_grid = np.roll(np.roll(vote_grid, mean[0], 0), mean[2], 2)
+
     refresh()
 
   

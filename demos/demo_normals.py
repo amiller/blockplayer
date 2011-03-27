@@ -20,7 +20,7 @@ def go():
 
 def once():
     dataset.advance()
-    depthL = dataset.depthL.astype('f')
+    depth = dataset.depth.astype('f')
 
     #n,w = normals.normals_numpy(depthL)
     #show_normals(n, w, 'normals_numpy')
@@ -31,12 +31,12 @@ def once():
     rect = ((0,0),(640,480))
     mask = np.zeros((480,640),'bool')
     mask[1:-1,1:-1] = 1
-    normals.opencl.set_rect(rect, ((0,0),(0,0)))
+    normals.opencl.set_rect(rect)
     dt = timeit.timeit(lambda:
-                       normals.normals_opencl(depthL, mask, rect).wait(),
+                       normals.normals_opencl(depth, mask, rect).wait(),
                        number=1)
     #print dt
-    nw,_ = normals.opencl.get_normals()
+    nw = normals.opencl.get_normals()
     n,w = nw[:,:,:3], nw[:,:,3]
     show_normals(n, w, 'normals_opencl')
 

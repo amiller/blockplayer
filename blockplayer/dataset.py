@@ -6,28 +6,23 @@ import gzip
 import config
 import opencl
 
-depthL = None
-depthR = None
+depth = None
 
 current_path = None
 frame_num = None
 
 
 def advance(skip=1):
-    # Load the next pair of images
-    global frame_num, depthL, depthR
+    # Load the image
+    global frame_num, depth
     frame_num += skip
-    with gzip.open('%s/depthL_%05d.npy.gz' % (current_path, frame_num),
+    with gzip.open('%s/depth_%05d.npy.gz' % (current_path, frame_num),
                    'rb') as f:
-        depthL = np.load(f)
-    with gzip.open('%s/depthR_%05d.npy.gz' % (current_path, frame_num),
-                   'rb') as f:
-        depthR = np.load(f)
+        depth = np.load(f)
 
 
 def setup_opencl():
-    opencl.setup_kernel((config.bgL['KK'],config.bgL['Ktable']),
-                        (config.bgR['KK'],config.bgR['Ktable']))
+    opencl.setup_kernel((config.bg['KK'],config.bg['Ktable']))
 
 
 def load_dataset(pathname):

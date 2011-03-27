@@ -14,10 +14,8 @@ def show_depth(name, depth):
 
 
 def preview():
-    (depthL,_) = freenect.sync_get_depth(1)
-    (depthR,_) = freenect.sync_get_depth(0)
-    show_depth('depthL', depthL)
-    show_depth('depthR', depthR)
+    (depth,_) = freenect.sync_get_depth()
+    show_depth('depthL', depth)
 
 
 def go():
@@ -40,11 +38,8 @@ def record(filename=None):
     frame = 0
     try:
         while 1:
-            (depthL,_) = freenect.sync_get_depth(0)
-            (depthR,_) = freenect.sync_get_depth(1)
-
-            np.save('%s/depthL_%05d.npy' % (foldername,frame), depthL)
-            np.save('%s/depthR_%05d.npy' % (foldername,frame), depthR)
+            (depth,_) = freenect.sync_get_depth()
+            np.save('%s/depth_%05d.npy' % (foldername,frame), depth)
 
             if frame % 30 == 0:
                 print 'frame: %d' % frame
