@@ -1,6 +1,7 @@
 import numpy as np
 import pylab
 from OpenGL.GL import *
+import freenect
 
 import blockplayer.visuals.pointwindow
 from blockplayer import dataset
@@ -12,6 +13,10 @@ from blockplayer import lattice
 from blockplayer import flatrot
 
 
+if not 'FOR_REAL' in globals():
+    FOR_REAL = False
+
+
 from blockplayer.visuals.pointwindow import PointWindow
 global window
 if not 'window' in globals():
@@ -19,31 +24,33 @@ if not 'window' in globals():
 
 
 def once():
-    dataset.advance()
-    global depthL,depthR
-    depthL,depthR = dataset.depthL,dataset.depthR
+    if not FOR_REAL:
+        dataset.advance()
+        global depth
+        depth = dataset.depth
+    else:
+        depth,_ = freenect.sync_get_depth()
 
     def from_rect(m,rect):
         (l,t),(r,b) = rect
         return m[t:b,l:r]
 
-    global maskL, rectL
-    global maskR, rectR
+    global mask, rect
 
-    (maskL,rectL) = preprocess.threshold_and_mask(depthL,config.bgL)
-    (maskR,rectR) = preprocess.threshold_and_mask(depthR,config.bgR)
+    (mask,rect) = preprocess.threshold_and_mask(depth,config.bg)
 
-    opencl.set_rect(rectL,rectR)
-    normals.normals_opencl2(from_rect(depthL,rectL).astype('f'),
-                            np.array(from_rect(maskL,rectL)), rectL,
-                            from_rect(depthR,rectR).astype('f'),
-                            np.array(from_rect(maskR,rectR)), rectR,
-                            6)
+    opencl.set_rect(rect)
+    normals.normals_opencl(from_rect(depth,rect).astype('f'),
+                           np.array(from_rect(mask,rect)), rect,
+                           6)
 
     mat = np.eye(4,dtype='f')
     mat[:3,:3] = flatrot.flatrot_opencl()
 
     mat = lattice.lattice2_opencl(mat)
+    #print 'flatrot.dm:', flatrot.dm,\
+    #      'lat.dmx:', lattice.dmx, lattice.countx,\
+    #      'lat.dmy:', lattice.dmy, lattice.county
 
     global face, Xo, Yo, Zo
     _,_,_,face = np.rollaxis(opencl.get_modelxyz(),1)
@@ -68,8 +75,11 @@ def resume():
     while 1: once()
 
 
-def go():
-    dataset.load_random_dataset()
+def go(forreal=False):
+    global FOR_REAL
+    FOR_REAL = forreal
+    if not FOR_REAL:
+        dataset.load_random_dataset()
     resume()
 
 
@@ -108,7 +118,7 @@ def update(X,Y,Z,UV=None,rgb=None,COLOR=None,AXES=None):
         if 1:
             glBegin(GL_QUADS)
             glColor(0.6,0.7,0.7,1)
-            for x,y,z in config.bgL['boundptsM']:
+            for x,y,z in config.bg['boundptsM']:
                 glVertex(x,y,z)
             glEnd()
 

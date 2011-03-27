@@ -38,8 +38,8 @@ def refresh():
     #solid_blocks = carve.grid_vertices((occH>10))
     #shadow_blocks = carve.grid_vertices((vacH>10))
     solid_blocks = carve.grid_vertices((carve_grid<30)&(vote_grid>30))
-    shadow_blocks = carve.grid_vertices((carve_grid>=30)&(vote_grid>30))
-    wire_blocks = carve.grid_vertices((carve_grid>10))
+    #shadow_blocks = carve.grid_vertices((carve_grid>=30)&(vote_grid>30))
+    #wire_blocks = carve.grid_vertices((carve_grid>10))
 
 
 def drift_correction(new_votes, new_carve):
@@ -68,19 +68,11 @@ def drift_correction(new_votes, new_carve):
     return t[np.argmin(vals)], np.min(vals)
 
 
-def depth_inds(modelmat, side='left'):    
+def depth_inds(modelmat, X, Y, Z):    
     gridmin = bounds[0]
     gridmax = bounds[1]
 
-    X,Y,Z = np.mgrid[gridmin[0]:gridmax[0],
-                     gridmin[1]:gridmax[1],
-                     gridmin[2]:gridmax[2]]+0.5
-    X *= config.LW
-    Y *= config.LH
-    Z *= config.LW
-
-    bg = config.bgL if side == 'left' else config.bgR
-
+    bg = config.bg
     mat = np.linalg.inv(np.dot(np.dot(modelmat,
                                bg['Ktable']),
                         bg['KK']))
@@ -92,29 +84,33 @@ def depth_inds(modelmat, side='left'):
     return x/w, y/w, z/w
 
 
-def depth_sample(modelmat, depth, side='left'):
+def depth_sample(modelmat, depth):
     gridmin = np.zeros((4,),'f')
     gridmax = np.zeros((4,),'f')
     gridmin[:3] = bounds[0]
     gridmax[:3] = bounds[1]
 
-    # Find the reference depth for each voxel, and the sampled depth
-    x,y,dref = depth_inds(modelmat, side)
-    depth_ = depth.astype('f')
-    depth_[depth==2047] = -np.inf
-    import scipy.ndimage
-    d = scipy.ndimage.map_coordinates(depth_, (y,x), order=0,
-                                      prefilter=False,
-                                      cval=-np.inf)
-    
-    #d = depth[np.round(x).astype('i'),np.round(y).astype('i')]
-
+    # Only keep the X,Y,Z points we haven't 'carved out' already
     X,Y,Z = np.mgrid[gridmin[0]:gridmax[0],
                      gridmin[1]:gridmax[1],
                      gridmin[2]:gridmax[2]]+0.5
 
+    X *= config.LW
+    Y *= config.LH
+    Z *= config.LW
+
+    # Find the reference depth for each voxel, and the sampled depth
+    x,y,dref = depth_inds(modelmat, X,Y,Z)
+    depth_ = depth.astype('f')
+    #depth_[depth==2047] = -np.inf
+    import scipy.ndimage
+    d = scipy.ndimage.map_coordinates(depth_, (y,x), order=0,
+                                      prefilter=False,
+                                      cval=-np.inf)
+
+    np.seterr(invalid='ignore')
     # Project to metric depth
-    mat = config.bgL['KK'] if side == 'left' else config.bgR['KK']
+    mat = config.bg['KK']
     z = x*mat[2,0] + y*mat[2,1] + d*mat[2,2] + mat[2,3]
     w = x*mat[3,0] + y*mat[3,1] + d*mat[3,2] + mat[3,3]
     dmet = z/w
@@ -126,55 +122,58 @@ def depth_sample(modelmat, depth, side='left'):
     length = np.sqrt((config.LH**2+
                       config.LW**2+
                       config.LH**2))/2
-
-    global checkleft, checkdepth
-    if side == 'left':
-        checkdepth = depth_
-        checkleft = x,y,d,dref, (d>0)&(dmet<drefmet-length)&(vote_grid>30)
+    np.seterr(invalid='warn')
     return x,y,d,dref, (d>0)&(dmet<drefmet-length)
 
 
-def add_votes_numpy(xfix, zfix, depthL, depthR):
+def add_votes_numpy(xfix, zfix, depth):
+    add_votes(xfix, zfix, depth, use_opencl=False)
+
+
+def add_votes_opencl(xfix,zfix, depth):
+    add_votes(xfix, zfix, depth, use_opencl=True)
+    
+
+def add_votes(xfix, zfix, depth, use_opencl):    
     gridmin = np.zeros((4,),'f')
     gridmax = np.zeros((4,),'f')
     gridmin[:3] = bounds[0]
     gridmax[:3] = bounds[1]
 
-    global X,Y,Z, XYZ
-    X,Y,Z,face = np.rollaxis(opencl.get_modelxyz(),1)
-    XYZ = np.array((X,Y,Z)).transpose()
-    fix = np.array((xfix,0,zfix))
-    cxyz = np.frombuffer(np.array(face).data,
-                         dtype='i1').reshape(-1,4)[:,:3]
-    global cx,cy,cz
-    cx,cy,cz = np.rollaxis(cxyz,1)
-    f1 = cxyz*0.5
+    global gridinds, inds, grid
+    if not use_opencl:
+        global X,Y,Z, XYZ
+        X,Y,Z,face = np.rollaxis(opencl.get_modelxyz(),1)
+        XYZ = np.array((X,Y,Z)).transpose()
+        fix = np.array((xfix,0,zfix))
+        cxyz = np.frombuffer(np.array(face).data,
+                             dtype='i1').reshape(-1,4)[:,:3]
+        global cx,cy,cz
+        cx,cy,cz = np.rollaxis(cxyz,1)
+        f1 = cxyz*0.5
 
-    mod = np.array([config.LW, config.LH, config.LW])
-    gi = np.floor(-gridmin[:3] + (XYZ-fix)/mod + f1)
-    gi = np.array((gi, gi - cxyz))
-    gi = np.rollaxis(gi, 1)
+        mod = np.array([config.LW, config.LH, config.LW])
+        gi = np.floor(-gridmin[:3] + (XYZ-fix)/mod + f1)
+        gi = np.array((gi, gi - cxyz))
+        gi = np.rollaxis(gi, 1)
 
-    global blahpt
-    blahpt = (XYZ-fix)/mod+f1
+        def get_gridinds():
+            (L,T),(R,B) = opencl.rect
+            length = opencl.length
+            return (gridinds[:length,:,:].reshape(T-B,R-L,2,3),
+                    gridinds[length:,:,:].reshape(T-B,R-L,2,3))
 
-    global gridinds
-    gridinds = gi
+        gridinds = gi
+        grid = get_gridinds()
+        inds = gridinds[np.any(cxyz!=0,1),:,:]
 
-    def get_gridinds():
-        (L1,T1),(R1,B1) = opencl.rectL
-        (L2,T2),(R2,B2) = opencl.rectR
-        lengthL, lengthR = opencl.lengthL, opencl.lengthR
-                
-        return (gridinds[:lengthL,:,:].reshape(T1-B1,R1-L1,2,3),
-                gridinds[lengthL:,:,:].reshape(T2-B2,R2-L2,2,3))
+    else:
+        opencl.compute_gridinds(xfix,zfix,
+                                config.LW, config.LH,
+                                gridmin, gridmax)
+        gridinds = opencl.get_gridinds()
+        inds = gridinds[gridinds[:,0,3]!=0,:,:3]    
 
-    global gridL, gridR
-    gridL, gridR = get_gridinds()
-
-    global inds
-    inds = gridinds[np.any(cxyz!=0,1),:,:]
-    #inds = gridinds[cy!=0,:,:]
     if len(inds) == 0: return
 
     global occH, vacH
@@ -184,11 +183,11 @@ def add_votes_numpy(xfix, zfix, depthL, depthR):
     vacH,_ = np.histogramdd(inds[:,1,:], bins)
 
     # Add in the carved pixels
-    _,_,_,_,carveL = depth_sample(lattice.modelmat,depthL,'left')
-    _,_,_,_,carveR = depth_sample(lattice.modelmat,depthR,'right')
+    _,_,_,_,carve = depth_sample(lattice.modelmat,depth)
+    
     #vacH *= 0
-    vacH += 60 * (carveL | carveR)
-
+    vacH += 60*carve
+    occH[vacH>30] = 0
     # Correct for drift
     (bx,_,bz),err = drift_correction(occH, vacH)
     if (bx,bz) != (0,0):
@@ -233,42 +232,4 @@ def add_votes_numpy(xfix, zfix, depthL, depthR):
 
     refresh()
 
-  
-def add_votes_opencl(xfix,zfix):
-    gridmin = np.zeros((4,),'f')
-    gridmax = np.zeros((4,),'f')
-    gridmin[:3] = bounds[0]
-    gridmax[:3] = bounds[1]
 
-    global occH, vacH
-    global carve_grid,vote_grid
-
-    opencl.compute_gridinds(xfix,zfix, config.LW, config.LH, gridmin, gridmax)
-    global gridinds
-    gridinds = opencl.get_gridinds()
-
-    inds = gridinds[gridinds[:,0,3]!=0,:,:3]    
-    if len(inds) == 0: return
-  
-    bins = [np.arange(0,bounds[1][i]-bounds[0][i]+1) for i in range(3)]
-    occH,_ = np.histogramdd(inds[:,0,:], bins)
-    vacH,_ = np.histogramdd(inds[:,1,:], bins)
-    bx,_,bz = drift_correction(occH, vacH)
-    if 0 and (bx,bz) != (0,0):
-        lattice.modelmat[0,3] += bx*config.LW
-        lattice.modelmat[2,3] += bz*config.LW
-        print "drift detected:", bx,bz
-        return lattice.modelmat[:3,:4]
-
-    wx,wy,wz = [bounds[1][i]-bounds[0][i] for i in range(3)]
-
-    # occH = np.zeros((wx,wy,wz),'f')
-    # vacH = np.zeros((wx,wy,wz),'f')
-    # speedup_ctypes.histogram(gridinds.ctypes.data_as(PTR(c_byte)), 
-    #                          occH.ctypes.data_as(PTR(c_float)),
-    #                          vacH.ctypes.data_as(PTR(c_float)), 
-    #                          np.int32(gridinds.shape[0]), 
-    #                          np.int32(wx), np.int32(wy), np.int32(wz))
-    #sums = np.zeros((3,3),'f')
-
-    refresh()

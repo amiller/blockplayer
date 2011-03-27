@@ -202,7 +202,7 @@ kernel void lattice2_compute(
   if (norm[index].w == 0) { // Quit early if the weight is too low!
    face_label[index] = (float4)(0,0,0,0);
    qx2z2[index] = (float4)(0,0,0,0);
-   modelxyz[index] = (float4)(0,0,0,0);
+   modelxyz[index] = (float4)(0,0,0,as_float((char4)1));
    return;
   }
 
@@ -220,9 +220,8 @@ kernel void lattice2_compute(
 
   // Threshold the normals and pack it into one number as a label
   const float CLIM = 0.9486;
-  float4 cxyz_ = (float4)(-1) + step(dxyz_,(float4)(-CLIM)) +
-                                step(dxyz_,(float4)(CLIM));
-  XYZ.w = as_float(convert_char4(cxyz_));
+  float4 cxyz_ = step(dxyz_,(float4)(-CLIM)) + step(dxyz_,(float4)(CLIM)) - 1;
+  XYZ.w = as_float(convert_uchar4(cxyz_+1));
 
   // Finally do the trig functions
   float2 qsin, qcos;
@@ -248,16 +247,21 @@ kernel void gridinds_compute(
 )
 {
   unsigned int index = get_global_id(0);
+
   float4 xyzf = modelxyz[index];
-  float4 cxyz_ = convert_float4(as_char4(xyzf.w));
-  
+  unsigned int asdf = as_uint(xyzf.w);
+  float4 cxyz_;
+  cxyz_.x = (asdf & 0xFF) - 1.0;
+  cxyz_.y = ((asdf >>  8) & 0xFF) - 1.0;
+  cxyz_.z = ((asdf >> 16) & 0xFF) - 1.0;
+
   float4 f1 = cxyz_ * 0.5;
   float4 fix = (float4)(xfix,0,zfix,0);  
   float4 mod = (float4)(LW,LH,LW,1);
-  
+
   float4 occ = floor(-gridmin + (xyzf-fix)/mod + f1);
   float4 vac = occ - cxyz_;
-  occ.w = dot(cxyz_, (float4)(1,2,4,0));
+  occ.w = cxyz_.x*4 + cxyz_.y*2 + cxyz_.z;
   vac.w = occ.w;
   gridinds[2*index+0] = convert_char4(occ);
   gridinds[2*index+1] = convert_char4(vac);
@@ -345,7 +349,7 @@ def load_filt(filt):
   return cl.enqueue_write_buffer(queue, filt_buf, filt, is_blocking=False)
   
 def get_xyz():
-  xyz = np.empty((lengthL+lengthR,4),'f')
+  xyz = np.empty((length,4),'f')
   cl.enqueue_read_buffer(queue, xyz_buf, xyz).wait()
   return xyz
   

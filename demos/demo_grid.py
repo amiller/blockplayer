@@ -1,6 +1,7 @@
 import numpy as np
 import pylab
 from OpenGL.GL import *
+import freenect
 
 from blockplayer import dataset
 from blockplayer import config
@@ -17,27 +18,29 @@ if not 'window' in globals():
     window = PointWindow(title='demo_grid', size=(640,480))
 
 
+if not 'FOR_REAL' in globals():
+    FOR_REAL = False
+
+
 def once():
-    dataset.advance()
-    global depthL,depthR
-    depthL,depthR = dataset.depthL,dataset.depthR
+    if not FOR_REAL:
+        dataset.advance()
+        global depth
+        depth = dataset.depth
+    else:
+        depth,_ = freenect.sync_get_depth()
 
     def from_rect(m,rect):
         (l,t),(r,b) = rect
         return m[t:b,l:r]
 
-    global maskL, rectL
-    global maskR, rectR
+    global mask, rect
+    (mask,rect) = preprocess.threshold_and_mask(depth,config.bg)
 
-    (maskL,rectL) = preprocess.threshold_and_mask(depthL,config.bgL)
-    (maskR,rectR) = preprocess.threshold_and_mask(depthR,config.bgR)
-
-    opencl.set_rect(rectL,rectR)
-    normals.normals_opencl2(from_rect(depthL,rectL).astype('f'),
-                            np.array(from_rect(maskL,rectL)), rectL,
-                            from_rect(depthR,rectR).astype('f'),
-                            np.array(from_rect(maskR,rectR)), rectR,
-                            6)
+    opencl.set_rect(rect)
+    normals.normals_opencl(from_rect(depth,rect).astype('f'),
+                           np.array(from_rect(mask,rect)), rect,
+                           6)
 
     global modelmat
 
@@ -50,20 +53,23 @@ def once():
         mat[:3,:3] = flatrot.flatrot_opencl(modelmat[:3,:])
         mat = lattice.lattice2_opencl(mat)
 
-    print 'flatrot.dm:', flatrot.dm, 'lat.dmx:', lattice.dmx, 'lat.dmy:', lattice.dmy
+    #print 'flatrot.dm:', flatrot.dm, \
+    #      'lat.dmx:', lattice.dmx, \
+    #      'lat.dmy:', lattice.dmy
 
-    global face, Xo, Yo, Zo
-    _,_,_,face = np.rollaxis(opencl.get_modelxyz(),1)
-    Xo,Yo,Zo,_ = np.rollaxis(opencl.get_xyz(),1)
+    if 1:
+        global face, Xo, Yo, Zo
+        _,_,_,face = np.rollaxis(opencl.get_modelxyz(),1)
+        Xo,Yo,Zo,_ = np.rollaxis(opencl.get_xyz(),1)
 
-    global cx,cy,cz
-    cx,cy,cz,_ = np.rollaxis(np.frombuffer(np.array(face).data,
-                                           dtype='i1').reshape(-1,4),1)
+        global cx,cy,cz
+        cx,cy,cz,_ = np.rollaxis(np.frombuffer(np.array(face).data,
+                                               dtype='i1').reshape(-1,4),1)-1
     R,G,B = [np.abs(_).astype('f') for _ in cx,cy,cz]
     update(Xo,Yo,Zo,COLOR=(R,G,B,R*0+1))
 
-    #grid.add_votes_opencl(lattice.meanx, lattice.meanz)
-    grid.add_votes_numpy(lattice.meanx, lattice.meanz, depthL, depthR)
+    grid.add_votes_opencl(lattice.meanx, lattice.meanz, depth)
+    #grid.add_votes_numpy(lattice.meanx, lattice.meanz, depth)
     modelmat = lattice.modelmat
 
     window.clearcolor = [1,1,1,0]
@@ -77,17 +83,23 @@ def resume():
     while 1: once()
 
 
-def start(frame_num=0):
+def start(dset=None, frame_num=0):
     global modelmat
     modelmat = None
     grid.initialize()
-    dataset.load_random_dataset()
+    if dset is None:
+        dataset.load_random_dataset()
+    else:
+        dataset.load_dataset(dset)
     while dataset.frame_num < frame_num:
         dataset.advance()
 
 
-def go(frame_num=0):
-    start(frame_num)
+def go(dset=None, frame_num=0, forreal=False):
+    global FOR_REAL
+    FOR_REAL = forreal
+    if not forreal:
+        start(dset, frame_num)
     resume()
 
 
@@ -127,7 +139,7 @@ def update(X,Y,Z,UV=None,rgb=None,COLOR=None,AXES=None):
         if 1:
             glBegin(GL_QUADS)
             glColor(0.6,0.7,0.7,1)
-            for x,y,z in config.bgL['boundptsM']:
+            for x,y,z in config.bg['boundptsM']:
                 glVertex(x,y,z)
             glEnd()
 
@@ -153,7 +165,7 @@ def update(X,Y,Z,UV=None,rgb=None,COLOR=None,AXES=None):
             glVertexPointeri(carve_verts)
             glDrawElementsui(GL_LINES, line_inds)
 
-        if 1 and shadow_blocks:
+        if 0 and shadow_blocks:
             carve_verts, _, line_inds, quad_inds = shadow_blocks
             glVertexPointeri(carve_verts)
             #glDrawElementsui(GL_QUADS, quad_inds)
@@ -200,7 +212,7 @@ def update(X,Y,Z,UV=None,rgb=None,COLOR=None,AXES=None):
         if 1:
             glLineWidth(1)
             glBegin(GL_LINES)
-            GR = 18
+            GR = grid.GRIDRAD
             glColor3f(0.2,0.2,0.4)
             for j in range(0,1):
                 for i in range(-GR,GR+1):
