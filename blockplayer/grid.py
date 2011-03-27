@@ -2,7 +2,6 @@ import numpy as np
 import preprocess
 import opencl
 import lattice
-import carve
 import config
 import os
 
@@ -15,6 +14,31 @@ speedup_ctypes = np.ctypeslib.load_library('speedup_ctypes.so',
                                            os.path.dirname(__file__))
 speedup_ctypes.histogram.argtypes = [PTR(c_byte), PTR(c_float), PTR(c_float),
                                      c_size_t, c_size_t, c_size_t, c_size_t]
+
+
+def grid_vertices(grid,factor=1):
+    """
+    Given a boolean voxel grid, produce a list of vertices and indices
+    for drawing quads or line strips in opengl
+    """
+    q = [[[1,1,0],[0,1,0],[0,1,1],[1,1,1]], \
+         [[1,0,1],[0,0,1],[0,0,0],[1,0,0]], \
+         [[1,1,1],[0,1,1],[0,0,1],[1,0,1]], \
+         [[1,0,0],[0,0,0],[0,1,0],[1,1,0]], \
+         [[0,1,1],[0,1,0],[0,0,0],[0,0,1]], \
+         [[1,1,0],[1,1,1],[1,0,1],[1,0,0]]]
+
+    normal = [np.cross(np.subtract(qz[0],qz[1]),np.subtract(qz[0],qz[2]))
+              for qz in q]
+
+    blocks = np.array(grid.nonzero()).transpose().reshape(-1,1,3)
+    q = np.array(q).reshape(1,-1,3)
+    vertices = (q + blocks).reshape(-1,3)
+    normals = np.tile(normal, (len(blocks),4)).reshape(-1,3)*factor
+    line_inds = np.arange(0,len(blocks)*6).reshape(-1,1)*4 + [0,1,1,2,2,3,3,0]
+    quad_inds = np.arange(0,len(blocks)*6).reshape(-1,1)*4 + [0,1,2,3]
+
+    return vertices, normals, line_inds, quad_inds
 
 
 def initialize():
@@ -35,11 +59,9 @@ if not 'vote_grid' in globals(): initialize()
 
 def refresh():
     global solid_blocks, shadow_blocks, wire_blocks
-    #solid_blocks = carve.grid_vertices((occH>10))
-    #shadow_blocks = carve.grid_vertices((vacH>10))
-    solid_blocks = carve.grid_vertices((carve_grid<30)&(vote_grid>30))
-    #shadow_blocks = carve.grid_vertices((carve_grid>=30)&(vote_grid>30))
-    #wire_blocks = carve.grid_vertices((carve_grid>10))
+    solid_blocks = grid_vertices((carve_grid<30)&(vote_grid>30))
+    #shadow_blocks = grid_vertices((carve_grid>=30)&(vote_grid>30))
+    #wire_blocks = grid_vertices((carve_grid>10))
 
 
 def drift_correction(new_votes, new_carve):
