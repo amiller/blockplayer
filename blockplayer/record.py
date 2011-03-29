@@ -5,23 +5,33 @@ import shutil
 import cv
 import subprocess
 import dataset
+import colormap
+import pylab
 
 
 def show_depth(name, depth):
-    im = cv.CreateImage((depth.shape[1],depth.shape[0]), 32, 1)
-    cv.SetData(im, depth.astype('f') / depth.max())
+    im = cv.CreateImage((depth.shape[1],depth.shape[0]), 8, 3)
+    cv.SetData(im, colormap.color_map(depth))
     cv.ShowImage(name, im)
+
+
+depth_cache = []
 
 
 def preview():
     (depth,_) = freenect.sync_get_depth()
-    show_depth('depthL', depth)
+    global depth_cache
+    depth_cache.append(np.array(depth))
+    depth_cache = depth_cache[-5:]
+    for d in depth_cache:
+        depth *= (d<2047)
+    show_depth('depth', depth)
 
 
 def go():
     while 1:
         preview()
-        cv.WaitKey(10)
+        pylab.waitforbuttonpress(0.005)
 
 
 def record(filename=None):

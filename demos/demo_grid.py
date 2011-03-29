@@ -22,6 +22,9 @@ if not 'FOR_REAL' in globals():
     FOR_REAL = False
 
 
+depth_cache = []
+
+
 def once():
     if not FOR_REAL:
         dataset.advance()
@@ -33,6 +36,12 @@ def once():
     def from_rect(m,rect):
         (l,t),(r,b) = rect
         return m[t:b,l:r]
+
+    global depth_cache
+    #depth_cache.append(np.array(depth))
+    #depth_cache = depth_cache[-5:]
+    #for d in depth_cache[:-1]:
+    #    depth[d==2047]=2047
 
     global mask, rect
     (mask,rect) = preprocess.threshold_and_mask(depth,config.bg)
@@ -65,11 +74,11 @@ def once():
         global cx,cy,cz
         cx,cy,cz,_ = np.rollaxis(np.frombuffer(np.array(face).data,
                                                dtype='i1').reshape(-1,4),1)-1
-    R,G,B = [np.abs(_).astype('f') for _ in cx,cy,cz]
-    update(Xo,Yo,Zo,COLOR=(R,G,B,R*0+1))
+        R,G,B = [np.abs(_).astype('f') for _ in cx,cy,cz]
+        update(Xo,Yo,Zo,COLOR=(R,G,B,R*0+1))
 
-    grid.add_votes_opencl(lattice.meanx, lattice.meanz, depth)
-    #grid.add_votes_numpy(lattice.meanx, lattice.meanz, depth)
+    grid.add_votes(lattice.meanx, lattice.meanz, depth, use_opencl=True)
+    #grid.add_votes(lattice.meanx, lattice.meanz, depth, use_opencl=False)
     modelmat = lattice.modelmat
 
     window.clearcolor = [1,1,1,0]
@@ -87,19 +96,22 @@ def start(dset=None, frame_num=0):
     global modelmat
     modelmat = None
     grid.initialize()
-    if dset is None:
-        dataset.load_random_dataset()
+    if not FOR_REAL:
+        if dset is None:
+            dataset.load_random_dataset()
+        else:
+            dataset.load_dataset(dset)
+        while dataset.frame_num < frame_num:
+            dataset.advance()
     else:
-        dataset.load_dataset(dset)
-    while dataset.frame_num < frame_num:
-        dataset.advance()
+        config.load('data/newest_calibration')
+        dataset.setup_opencl()
 
 
 def go(dset=None, frame_num=0, forreal=False):
     global FOR_REAL
     FOR_REAL = forreal
-    if not forreal:
-        start(dset, frame_num)
+    start(dset, frame_num)
     resume()
 
 

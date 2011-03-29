@@ -143,18 +143,10 @@ def depth_sample(modelmat, depth):
 
     length = np.sqrt((config.LH**2+
                       config.LW**2+
-                      config.LH**2))/2
+                      config.LH**2))*0.5
     np.seterr(invalid='warn')
     return x,y,d,dref, (d>0)&(dmet<drefmet-length)
 
-
-def add_votes_numpy(xfix, zfix, depth):
-    add_votes(xfix, zfix, depth, use_opencl=False)
-
-
-def add_votes_opencl(xfix,zfix, depth):
-    add_votes(xfix, zfix, depth, use_opencl=True)
-    
 
 def add_votes(xfix, zfix, depth, use_opencl):    
     gridmin = np.zeros((4,),'f')

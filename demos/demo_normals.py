@@ -20,29 +20,28 @@ def go():
 
 def once():
     dataset.advance()
+    global depth
     depth = dataset.depth.astype('f')
 
-    #n,w = normals.normals_numpy(depthL)
-    #show_normals(n, w, 'normals_numpy')
+    if 0:
+        n,w = normals.normals_numpy(depth)
+        show_normals(n, w, 'normals_numpy')
 
-    #n,w = normals.normals_c(depthL)
-    #show_normals(n, w, 'normals_c')
+    if 1:
+        n,w = normals.normals_c(depth)
+        show_normals(n, w, 'normals_c')
 
-    rect = ((0,0),(640,480))
-    mask = np.zeros((480,640),'bool')
-    mask[1:-1,1:-1] = 1
-    normals.opencl.set_rect(rect)
-    dt = timeit.timeit(lambda:
-                       normals.normals_opencl(depth, mask, rect).wait(),
-                       number=1)
-    #print dt
-    nw = normals.opencl.get_normals()
-    n,w = nw[:,:,:3], nw[:,:,3]
-    show_normals(n, w, 'normals_opencl')
+    if 1:
+        rect = ((0,0),(640,480))
+        mask = np.zeros((480,640),'bool')
+        mask[1:-1,1:-1] = 1
+        normals.opencl.set_rect(rect)
+        dt = timeit.timeit(lambda:
+                           normals.normals_opencl(depth, mask, rect).wait(),
+                           number=1)
+        #print dt
+        nw = normals.opencl.get_normals()
+        n,w = nw[:,:,:3], nw[:,:,3]
+        show_normals(n, w, 'normals_opencl')
 
-    pylab.waitforbuttonpress(0.01)
-
-
-if __name__ == "__main__":
-    dataset.load_random_dataset()
-    go()
+    pylab.waitforbuttonpress(0.005)
