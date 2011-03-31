@@ -6,7 +6,7 @@ import config
 import os
 
 GRIDRAD = 18
-bounds = (-GRIDRAD,0,-GRIDRAD),(GRIDRAD,8,GRIDRAD)
+bounds = (-GRIDRAD,0,-GRIDRAD),(GRIDRAD,9,GRIDRAD)
 
 
 from ctypes import POINTER as PTR, c_byte, c_size_t, c_float
@@ -61,6 +61,7 @@ def refresh():
     global solid_blocks, shadow_blocks, wire_blocks
     solid_blocks = grid_vertices((carve_grid<30)&(vote_grid>30))
     #shadow_blocks = grid_vertices((carve_grid>=30)&(vote_grid>30))
+    #shadow_blocks = grid_vertices((carve_grid>=30))
     #wire_blocks = grid_vertices((carve_grid>10))
 
 
@@ -141,9 +142,9 @@ def depth_sample(modelmat, depth):
     w = x*mat[3,0] + y*mat[3,1] + dref*mat[3,2] + mat[3,3]
     drefmet = z/w
 
-    length = np.sqrt((config.LH**2+
-                      config.LW**2+
-                      config.LH**2))*0.5
+    length = np.sqrt((config.LW**2+
+                      config.LH**2+
+                      config.LW**2))*0.5
     np.seterr(invalid='warn')
     return x,y,d,dref, (d>0)&(dmet<drefmet-length)
 
