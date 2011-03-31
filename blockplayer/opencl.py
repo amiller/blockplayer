@@ -56,6 +56,7 @@ def normal_maker(name, mat, matw, matr):
   	global float4 *output,
   	global float4 *xoutput,
   	global const float *filt,
+        global const float *raw,
   	global const char *mask,
   	const float4 bounds, const int offset
   )
@@ -88,7 +89,8 @@ def normal_maker(name, mat, matw, matr):
     float4  XYZW = (float4)(-dx, -dy, 1, -(-dx*x + -dy*y + filt[index]));
     float4  xyz = matmul3_%s ( XYZW);
     
-    float4 xXYZW = (float4)(  x,   y, filt[index], 1);
+    //float4 xXYZW = (float4)(  x,   y, filt[index], 1);
+    float4 xXYZW = (float4)(  x,   y, raw[index], 1);
 
     float4 _xyz = matmul4_%s (xXYZW);
     _xyz /= _xyz.w;
@@ -312,6 +314,7 @@ mask_buf    = cl.Buffer(context, mf.READ_WRITE, 480*640)
 normals_buf = cl.Buffer(context, mf.READ_WRITE, 480*640*4*4)
 xyz_buf     = cl.Buffer(context, mf.READ_WRITE, 480*640*4*4)
 filt_buf    = cl.Buffer(context, mf.READ_WRITE, 480*640*4)
+raw_buf     = cl.Buffer(context, mf.READ_WRITE, 480*640*4)
 
 qxdyqz_buf  = cl.Buffer(context, mf.READ_WRITE, 480*640*4*4)
 
@@ -340,6 +343,15 @@ def load_mask(mask):
   assert mask.shape[0] == B-T 
   assert mask.shape[1] == R-L
   return cl.enqueue_write_buffer(queue, mask_buf, mask, is_blocking=False)
+
+
+def load_raw(depth):
+  (L,T),(R,B) = rect
+  assert depth.dtype == np.float32
+  assert depth.shape[0] == B-T 
+  assert depth.shape[1] == R-L
+  return cl.enqueue_write_buffer(queue, raw_buf, depth, is_blocking=False)
+
 
 def load_filt(filt):
   (L,T),(R,B) = rect
@@ -399,7 +411,8 @@ def compute_normals():
 
   kernel = program.normal_compute_ONE
   evt = kernel(queue, (R-L,B-T), None, normals_buf, xyz_buf,
-        filt_buf, mask_buf, bounds, np.int32(0))  # offset unused (0)
+               filt_buf, raw_buf, mask_buf,
+               bounds, np.int32(0))  # offset unused (0)
   #import main
   #if main.WAIT_COMPUTE: evt.wait()
   return evt

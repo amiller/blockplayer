@@ -32,6 +32,7 @@ def normals_opencl(depth, mask=None, rect=((0,0),(640,480)), win=7):
     global filt
     filt = scipy.ndimage.uniform_filter(depth,win)
     opencl.load_filt(filt)
+    opencl.load_raw(depth)
     opencl.load_mask(mask)
     return opencl.compute_normals().wait()
 
