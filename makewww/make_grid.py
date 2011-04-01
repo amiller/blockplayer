@@ -74,6 +74,7 @@ def write_grid():
     <title>Blockplayer</title>
     <h3>Blockplayer Output</h3>
     {% for run in runs %}
+    <div style='float:left'>
     <h4>{{ run.name }}
       <a href="{{ run.name }}_block.html">[fullscreen]</a>
     </h4>
@@ -82,6 +83,7 @@ def write_grid():
     </div>
     <iframe src="{{ run.name }}_block.html" width="256" height="256">
     </iframe>
+    </div>
     {% endfor %}
     """)
     with open(os.path.join(out_path,'index.html'),'w') as f:
