@@ -44,14 +44,21 @@ def once():
     #    depth[d==2047]=2047
 
     global mask, rect
-    (mask,rect) = preprocess.threshold_and_mask(depth,config.bg)
+    global modelmat
+
+    try:
+        (mask,rect) = preprocess.threshold_and_mask(depth,config.bg)
+    except IndexError:
+        grid.initialize()
+        modelmat = None
+        window.Refresh()
+        pylab.waitforbuttonpress(0.01)
+        return
 
     opencl.set_rect(rect)
     normals.normals_opencl(from_rect(depth,rect).astype('f'),
                            np.array(from_rect(mask,rect)), rect,
                            6)
-
-    global modelmat
 
     mat = np.eye(4,dtype='f')
     if modelmat is None:
