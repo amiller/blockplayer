@@ -138,6 +138,9 @@ def run_grid():
         with open(os.path.join(out_path, '%s_block.html' % name),'w') as f:
             f.write(tmp.render(template.Context(dict(gstr=gstr))))
 
+        with open(os.path.join(out_path, '%s_block.txt' % name) ,'w') as f:
+            f.write(grid.grid2str())
+
         ds.append(d)
 
 

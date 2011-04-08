@@ -4,6 +4,7 @@ import opencl
 import lattice
 import config
 import os
+import dataset
 
 GRIDRAD = 18
 bounds = (-GRIDRAD,0,-GRIDRAD),(GRIDRAD,9,GRIDRAD)
@@ -14,6 +15,23 @@ speedup_ctypes = np.ctypeslib.load_library('speedup_ctypes.so',
                                            os.path.dirname(__file__))
 speedup_ctypes.histogram.argtypes = [PTR(c_byte), PTR(c_float), PTR(c_float),
                                      c_size_t, c_size_t, c_size_t, c_size_t]
+
+
+def grid2str():
+    global vote_grid
+    m = np.choose(vote_grid>30, (' ', '*'))
+    layers = [[''.join(_) for _ in m[:,i,:]]
+              for i in range(m.shape[1])]
+    import pprint
+    return pprint.pformat(layers)
+
+
+def load_gt():
+    # This is probably a hack! I don't know where to put the groundtruth
+    with open(os.path.join(dataset.current_path, 'config/gt.txt'),'r') as f:
+        s = f.read()
+    g = np.array(eval(s))
+    return g
 
 
 def grid_vertices(grid,factor=1):
@@ -233,7 +251,10 @@ def add_votes(xfix, zfix, depth, use_opencl):
     # Only update the persistent model if we satisfy a quality condition
     if lattice.dmx >= 0.8 and lattice.dmy >= 0.8 and \
        lattice.countx > 200 and lattice.county >= 200:
+
+        carve_grid[occH>60] = 0
         carve_grid = np.maximum(vacH, carve_grid)
+
         vote_grid = np.maximum(occH, vote_grid)
         vote_grid[carve_grid>30] = 0
 
@@ -246,5 +267,3 @@ def add_votes(xfix, zfix, depth, use_opencl):
         vote_grid = np.roll(np.roll(vote_grid, mean[0], 0), mean[2], 2)
 
     refresh()
-
-
