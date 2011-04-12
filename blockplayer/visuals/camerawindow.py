@@ -44,6 +44,8 @@ class CameraWindow(Window):
     
     
   def set_camera(self):
+    width,height = self.GetClientSize()
+    glViewport(0, 0, width, height)
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
     if self.mode == 'perspective':

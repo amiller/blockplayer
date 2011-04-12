@@ -11,6 +11,7 @@ from blockplayer import opencl
 from blockplayer import lattice
 from blockplayer import flatrot
 from blockplayer import grid
+import cv
 
 from blockplayer.visuals.pointwindow import PointWindow
 global window
@@ -32,6 +33,9 @@ def once():
         depth = dataset.depth
     else:
         depth,_ = freenect.sync_get_depth()
+        rgb,_ = freenect.sync_get_video(0, freenect.VIDEO_IR_8BIT)
+        cv.NamedWindow('RGB',0)
+        #cv.ShowImage('RGB',rgb)
 
     def from_rect(m,rect):
         (l,t),(r,b) = rect
@@ -84,7 +88,7 @@ def once():
         R,G,B = [np.abs(_).astype('f') for _ in cx,cy,cz]
         update(Xo,Yo,Zo,COLOR=(R,G,B,R*0+1))
 
-    grid.add_votes(lattice.meanx, lattice.meanz, depth, use_opencl=True)
+    grid.add_votes(lattice.meanx, lattice.meanz, depth, rect, use_opencl=True)
     #grid.add_votes(lattice.meanx, lattice.meanz, depth, use_opencl=False)
     modelmat = lattice.modelmat
 
@@ -196,17 +200,17 @@ def update(X,Y,Z,UV=None,rgb=None,COLOR=None,AXES=None):
         # verts, norms, line_inds, quad_inds =
             #grid_vertices((vote_grid>30)&(carve_grid<30))
         if 1 and solid_blocks:
-            verts, norms, line_inds, quad_inds = solid_blocks
+            blocks = solid_blocks
             glEnableClientState(GL_VERTEX_ARRAY)
-            glVertexPointeri(verts)
+            glVertexPointeri(blocks['vertices'])
             # glColor(0.3,0.3,0.3)
             glEnableClientState(GL_COLOR_ARRAY)
-            glColorPointerf(np.abs(norms))
-            glDrawElementsui(GL_QUADS, quad_inds)
+            glColorPointerf(np.abs(blocks['normals']))
+            glDrawElementsui(GL_QUADS, blocks['quad_inds'])
             glDisableClientState(GL_COLOR_ARRAY)
             glColor(1,1,1,1)
             #glColor(0.1,0.1,0.1)
-            glDrawElementsui(GL_LINES, line_inds)
+            glDrawElementsui(GL_LINES, blocks['line_inds'])
             glDisableClientState(GL_VERTEX_ARRAY)
         glPopMatrix()
 

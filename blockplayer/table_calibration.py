@@ -124,8 +124,6 @@ def find_plane(depth, boundpts):
                               GL_DEPTH_ATTACHMENT,
                               GL_RENDERBUFFER, rb);
     glEnable(GL_DEPTH_TEST)
-    glDrawBuffer(0)
-    glReadBuffer(0)
     glClear(GL_DEPTH_BUFFER_BIT)
     glViewport(0, 0, 640, 480)
     glMatrixMode(GL_MODELVIEW)
@@ -169,12 +167,6 @@ def find_plane(depth, boundpts):
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDeleteRenderbuffers(2, [rb,rbc]);
     glDeleteFramebuffers(1, [fbo]);
-    try:
-        glDrawBuffer(GL_BACK)
-        glReadBuffer(GL_BACK)
-    except:
-        glDrawBuffer(GL_FRONT)
-        glReadBuffer(GL_FRONT)
 
     background = np.array(depth)
     background[~mask] = 2047

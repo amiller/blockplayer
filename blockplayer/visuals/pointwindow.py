@@ -22,7 +22,7 @@ class PointWindow(CameraWindow):
     self.rgbtex = glGenTextures(1)
     glBindTexture(TEXTURE_TARGET, self.rgbtex)
     glTexImage2D(TEXTURE_TARGET,0,GL_RGB,640,480,0,GL_RGB,GL_UNSIGNED_BYTE,None)
-  
+
     self._depth = np.empty((480,640,3),np.int16)
     self._depth[:,:,1], self._depth[:,:,0] = np.mgrid[:480,:640]
     self.xyzbuf = glGenBuffersARB(1)
@@ -31,7 +31,7 @@ class PointWindow(CameraWindow):
     self.rgbabuf = glGenBuffersARB(1)
     glBindBufferARB(GL_ARRAY_BUFFER_ARB, self.rgbabuf)
     glBufferDataARB(GL_ARRAY_BUFFER_ARB, 640*480*4*4, None,GL_DYNAMIC_DRAW)
-    
+
   def update_points(self, XYZ=None, RGBA=None):
     if XYZ is None: XYZ = np.zeros((0,3),'f')
     assert XYZ.dtype == np.float32
@@ -47,14 +47,15 @@ class PointWindow(CameraWindow):
     if not RGBA is None:
       glBindBufferARB(GL_ARRAY_BUFFER_ARB, self.rgbabuf)
       glBufferSubDataARB(GL_ARRAY_BUFFER_ARB, 0, XYZ.shape[0]*4*4, RGBA)
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0)
 
-  def on_draw(self):  
+  def on_draw(self):
     super(PointWindow,self).set_camera()
 
     glClearColor(*self.clearcolor)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
     glEnable(GL_DEPTH_TEST)
-    
+
     self._wrap('pre_draw')
 
     glBindBufferARB(GL_ARRAY_BUFFER_ARB, self.xyzbuf)
