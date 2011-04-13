@@ -19,8 +19,8 @@ speedup_ctypes.histogram.argtypes = [PTR(c_byte), PTR(c_float), PTR(c_float),
 
 
 def grid2str():
-    global vote_grid
-    m = np.choose(vote_grid>30, (' ', '*'))
+    global vote_grid, carve_grid
+    m = np.choose(vote_grid&~carve_grid, (' ', '*'))
     layers = [[''.join(_) for _ in m[:,i,:]]
               for i in range(m.shape[1])]
     import pprint

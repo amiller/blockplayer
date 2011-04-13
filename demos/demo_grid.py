@@ -95,8 +95,6 @@ def once():
     window.clearcolor = [1,1,1,0]
     window.Refresh()
     pylab.waitforbuttonpress(0.01)
-    import sys
-    sys.stdout.flush()
 
 
 def resume():

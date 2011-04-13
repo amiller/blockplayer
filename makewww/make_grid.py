@@ -29,6 +29,7 @@ import sys
 sys.stdout.write("GL Version String: ")
 glxcontext.printinfo()
 
+
 modelmat = None
 
 
@@ -56,7 +57,7 @@ def once():
         mat[:3,:3] = flatrot.flatrot_opencl(modelmat[:3,:])
         mat = lattice.lattice2_opencl(mat)
 
-    grid.add_votes(lattice.meanx, lattice.meanz, depth, use_opencl=True)
+    grid.add_votes(lattice.meanx, lattice.meanz, depth, rect, use_opencl=True)
     modelmat = lattice.modelmat
 
 
@@ -108,6 +109,7 @@ def run_grid():
 
     datasets = glob.glob('data/sets/*')
     for name in datasets:
+    #for name in ('data/sets/cube',):
         dataset.load_dataset(name)
         name = os.path.split(name)[1]
 
@@ -131,8 +133,9 @@ def run_grid():
         d['frames'] = dataset.frame_num
         d['time'] = t2-t1
 
-        g = np.array(np.nonzero(grid.vote_grid>30)).transpose() + \
-            grid.bounds[0][:3]
+        global g
+        g = np.array(np.nonzero(grid.vote_grid&~grid.carve_grid))
+        g = g.transpose() + grid.bounds[0][:3]
         gstr = json.dumps(g.tolist())
 
         with open(os.path.join(out_path, '%s_block.html' % name),'w') as f:
