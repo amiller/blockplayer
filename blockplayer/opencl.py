@@ -290,14 +290,14 @@ def setup_kernel(mats=None):
     # I have no explanation for this workaround. Presumably it's fixed in 
     # another version of pyopencl. Wtf. Getting the kernel like this
     # makes it go much faster when we __call__ it.
-    def bullshit(self):
+    def workaround(self):
         return self
-    cl.Kernel.bullshit = bullshit
-    program.flatrot_compute = program.flatrot_compute.bullshit()
-    program.normal_compute_ONE = program.normal_compute_ONE.bullshit()
-    program.lattice2_compute = program.lattice2_compute.bullshit()
-    program.float4_sum = program.float4_sum.bullshit()
-    program.gridinds_compute = program.gridinds_compute.bullshit()
+    cl.Kernel.workaround = workaround
+    program.flatrot_compute = program.flatrot_compute.workaround()
+    program.normal_compute_ONE = program.normal_compute_ONE.workaround()
+    program.lattice2_compute = program.lattice2_compute.workaround()
+    program.float4_sum = program.float4_sum.workaround()
+    program.gridinds_compute = program.gridinds_compute.workaround()
 setup_kernel()
 
 print program.get_build_info(context.devices[0], cl.program_build_info.LOG)
