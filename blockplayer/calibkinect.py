@@ -81,24 +81,34 @@ def depth2xyzuv(depth, u=None, v=None):
   return xyz, uv
 
 
-
 def uv_matrix():
   """
   Returns a matrix you can use to project XYZ coordinates (in meters) into
       U,V coordinates in the kinect RGB image
   """
-  rot = np.array([[ 9.99846e-01,   -1.26353e-03,   1.74872e-02], 
-                  [-1.4779096e-03, -9.999238e-01,  1.225138e-02],
-                  [1.747042e-02,   -1.227534e-02,  -9.99772e-01]])
-  trans = np.array([[1.9985e-02, -7.44237e-04,-1.0916736e-02]])
-  m = np.hstack((rot, -trans.transpose()))
+
+  rot = np.array([9.9998802393075870e-01, -6.2977998218913971e-04,
+       4.8533877065907388e-03, 7.2759751545855894e-04,
+       9.9979611553846304e-01, -2.0179146564111142e-02,
+       -4.8396897536878121e-03, 2.0182436210091532e-02,
+       9.9978460013730641e-01]).reshape(3,3)
+
+  trans = np.array([[2.3531805894121169e-02, -1.3769320426104585e-03,
+       1.8042422163477460e-02]])
+
+  I = np.eye(3); I[1,1]=-1; I[2,2]=-1;
+  rot = np.dot(I, np.dot(rot.transpose(), I))
+  trans = np.dot(I, -trans.transpose())
+  
+  m = np.hstack((rot, trans))
   m = np.vstack((m, np.array([[0,0,0,1]])))
-  KK = np.array([[529.2, 0, 329, 0],
-                 [0, 525.6, 267.5, 0],
+  KK = np.array([[-521, 0, 330, 0],
+                 [0, 521, 272, 0],
                  [0, 0, 0, 1],
                  [0, 0, 1, 0]])
   m = np.dot(KK, (m))
   return m
+
 
 def xyz_matrix():
   fx = 583.0
