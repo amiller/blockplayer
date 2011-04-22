@@ -3,9 +3,18 @@ from distutils.extension import Extension
 from Cython.Distutils import build_ext
 
 ext_modules=[Extension("blockplayer.glxcontext",
-                       ["glxcontext/_glxcontext.c",
-                       "glxcontext/glxcontext.pyx"],
+                       ["blockplayer/glxcontext/_glxcontext.c",
+                       "blockplayer/glxcontext/glxcontext.pyx"],
                        libraries=['X11','GL']),
+             Extension("ntk.ntk",
+                       ["ntk/ntk.pyx"],
+                       language='c++',
+                       include_dirs=['ntk/nestk/deps/openni/Include',
+                                     'ntk/nestk/deps/openni/Nite/Include'],
+                       runtime_library_dirs=['ntk/','ntk/lib'],
+                       library_dirs=['ntk/'],
+                       #extra_objects=['ntk/lib_ntk.a'],
+                       libraries=['XnDevicesSensorV2','_ntk']),
              Extension("blockplayer.speedup_ctypes",
                        ["blockplayer/speedup_ctypes.c"])]
 
