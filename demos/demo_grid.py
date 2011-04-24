@@ -9,14 +9,19 @@ from blockplayer import preprocess
 from blockplayer import normals
 from blockplayer import opencl
 from blockplayer import lattice
-from blockplayer import flatrot
 from blockplayer import grid
+from blockplayer import spacecarve
+from blockplayer import stencil
+from blockplayer import occvac
+from blockplayer import blockdraw
+
 import cv
 
 from blockplayer.visuals.pointwindow import PointWindow
 global window
 if not 'window' in globals():
     window = PointWindow(title='demo_grid', size=(640,480))
+    window.Move((0,0))
 
 
 if not 'FOR_REAL' in globals():
@@ -27,28 +32,17 @@ depth_cache = []
 
 
 def once():
+    global depth, rgb
     if not FOR_REAL:
         dataset.advance()
-        global depth
         depth = dataset.depth
     else:
         depth,_ = freenect.sync_get_depth()
-        rgb,_ = freenect.sync_get_video(0, freenect.VIDEO_IR_8BIT)
+        rgb,_ = freenect.sync_get_video(0, freenect.VIDEO_RGB)
         cv.NamedWindow('RGB',0)
         #cv.ShowImage('RGB',rgb)
 
-    def from_rect(m,rect):
-        (l,t),(r,b) = rect
-        return m[t:b,l:r]
-
-    global depth_cache
-    #depth_cache.append(np.array(depth))
-    #depth_cache = depth_cache[-5:]
-    #for d in depth_cache[:-1]:
-    #    depth[d==2047]=2047
-
-    global mask, rect
-    global modelmat
+    global mask, rect, modelmat
 
     try:
         (mask,rect) = preprocess.threshold_and_mask(depth,config.bg)
@@ -59,42 +53,63 @@ def once():
         pylab.waitforbuttonpress(0.01)
         return
 
-    opencl.set_rect(rect)
-    normals.normals_opencl(from_rect(depth,rect).astype('f'),
-                           np.array(from_rect(mask,rect)), rect,
-                           6)
+    # Compute the surface normals
+    normals.normals_opencl(depth, mask, rect)
 
-    mat = np.eye(4,dtype='f')
-    if modelmat is None:
-        mat[:3,:3] = flatrot.flatrot_opencl()
-        mat = lattice.lattice2_opencl(mat)
+    # Find the lattice orientation and then translation
+    global R_oriented, R_aligned, R_correct
+    R_oriented = lattice.orientation_opencl()
+    R_aligned = lattice.translation_opencl(R_oriented)
+
+    # Use occvac to estimate the voxels from just the current frame
+    occ, vac = occvac.carve_opencl()
+
+    if grid.has_previous_estimate():
+        R_aligned, c = grid.nearest(grid.previous_estimate[2], R_aligned)
+        print c
+        occ = occvac.occ = grid.apply_correction(occ, *c)
+        vac = occvac.vac = grid.apply_correction(vac, *c)
+
+    # Further carve out the voxels using spacecarve
+    vac = vac | spacecarve.carve(depth, R_aligned)
+
+    if 1 and grid.has_previous_estimate():
+        # Align the new voxels with the previous estimate
+        R_correct, occ, vac = grid.align_with_previous(R_aligned, occ, vac)
     else:
-        mat = modelmat.copy()
-        mat[:3,:3] = flatrot.flatrot_opencl(modelmat[:3,:])
-        mat = lattice.lattice2_opencl(mat)
+        # Otherwise try to center it
+        R_correct, occ, vac = grid.center(R_aligned, occ, vac)
 
-    #print 'flatrot.dm:', flatrot.dm, \
-    #      'lat.dmx:', lattice.dmx, \
-    #      'lat.dmy:', lattice.dmy
+    if lattice.is_valid_estimate():
+        # Run stencil carve and merge
+        occ_stencil, vac_stencil = grid.stencil_carve(depth, rect,
+                                                      R_correct, occ, vac)
+        grid.merge_with_previous(occ, vac, occ_stencil, vac_stencil)
 
     if 1:
-        global face, Xo, Yo, Zo
-        _,_,_,face = np.rollaxis(opencl.get_modelxyz(),1)
-        Xo,Yo,Zo,_ = np.rollaxis(opencl.get_xyz(),1)
+        blockdraw.clear()
+        blockdraw.show_grid('occ', grid.occ&~occvac.occ,
+                            color=np.array([1,0.6,0.6,1]))
+        blockdraw.show_grid('occ1', grid.occ&occvac.occ,
+                            color=np.array([1,0,0,1]))
 
-        global cx,cy,cz
-        cx,cy,cz,_ = np.rollaxis(np.frombuffer(np.array(face).data,
-                                               dtype='i1').reshape(-1,4),1)-1
-        R,G,B = [np.abs(_).astype('f') for _ in cx,cy,cz]
-        update(Xo,Yo,Zo,COLOR=(R,G,B,R*0+1))
+        if 1 and lattice.is_valid_estimate():
+            if 1:
+                blockdraw.show_grid('occvac', occ_stencil,
+                                    color=np.array([1,1,0,1]))
+            if 0:
+                blockdraw.show_grid('o1', occvac.occ&~occ_stencil,
+                                    color=np.array([0,0,1,1]))
+            if 1:
+                blockdraw.show_grid('o2', occvac.occ&vac_stencil,
+                                    color=np.array([0,1,0,1]))
 
-    grid.add_votes(lattice.meanx, lattice.meanz, depth, rect, use_opencl=True)
-    #grid.add_votes(lattice.meanx, lattice.meanz, depth, use_opencl=False)
-    modelmat = lattice.modelmat
-
-    window.clearcolor = [1,1,1,0]
-    window.Refresh()
-    pylab.waitforbuttonpress(0.01)
+        #blockdraw.show_grid('vac', grid.vac,
+        #                    color=np.array([0.6,1,0.6,0]))
+        update_display()
+        pylab.waitforbuttonpress(0.01)
+        sys.stdout.flush()
+    grid.previous_estimate = grid.occ, grid.vac, R_correct
 
 
 def resume():
@@ -124,7 +139,19 @@ def go(dset=None, frame_num=0, forreal=False):
     resume()
 
 
-def update(X,Y,Z,UV=None,rgb=None,COLOR=None,AXES=None):
+def update_display():
+    global face, Xo, Yo, Zo
+    _,_,_,face = np.rollaxis(opencl.get_modelxyz(),1)
+    Xo,Yo,Zo,_ = np.rollaxis(opencl.get_xyz(),1)
+
+    global cx,cy,cz
+    cx,cy,cz,_ = np.rollaxis(np.frombuffer(np.array(face).data,
+                                           dtype='i1').reshape(-1,4),1)-1
+    R,G,B = [np.abs(_).astype('f') for _ in cx,cy,cz]
+    update(Xo,Yo,Zo,COLOR=(R,G,B,R*0+1))
+
+
+def update(X,Y,Z,COLOR=None,AXES=None):
     global modelmat
     if not 'modelmat' in globals():
         return
@@ -147,12 +174,16 @@ def update(X,Y,Z,UV=None,rgb=None,COLOR=None,AXES=None):
         color = color[mask,:]
 
     window.update_points(xyz, color)
+    window.clearcolor = [1,1,1,0]
+    window.Refresh()
 
     @window.event
     def post_draw():
         from blockplayer.config import LW,LH
-        from blockplayer.grid import solid_blocks, shadow_blocks, wire_blocks
-        if not 'modelmat' in lattice.__dict__: return
+
+        if not 'R_correct' in grid.__dict__: return
+        modelmat = R_correct
+
         glPolygonOffset(1.0,0.2)
         glEnable(GL_POLYGON_OFFSET_FILL)
 
@@ -165,7 +196,7 @@ def update(X,Y,Z,UV=None,rgb=None,COLOR=None,AXES=None):
             glEnd()
 
         glPushMatrix()
-        glMultMatrixf(np.linalg.inv(lattice.modelmat).transpose())
+        glMultMatrixf(np.linalg.inv(modelmat).transpose())
         glScale(LW,LH,LW)
 
         #glEnable(GL_LINE_SMOOTH)
@@ -175,41 +206,10 @@ def update(X,Y,Z,UV=None,rgb=None,COLOR=None,AXES=None):
         #for (x,y,z),cind in zip(legos,legocolors):
 
         glPushMatrix()
-        glTranslate(*grid.bounds[0])
+        glTranslate(*config.bounds[0])
 
-        # Draw the carved out pixels
-        glColor(1.0,0.1,0.1,0.2)
-        glEnableClientState(GL_VERTEX_ARRAY)
+        blockdraw.draw()
 
-        if 0 and wire_blocks:
-            carve_verts, _, line_inds, _ = wire_blocks
-            glVertexPointeri(carve_verts)
-            glDrawElementsui(GL_LINES, line_inds)
-
-        if 0 and shadow_blocks:
-            carve_verts, _, line_inds, quad_inds = shadow_blocks
-            glVertexPointeri(carve_verts)
-            #glDrawElementsui(GL_QUADS, quad_inds)
-            glColor(1,1,0)
-            glDrawElementsui(GL_LINES, line_inds)
-            glDisableClientState(GL_VERTEX_ARRAY)
-
-        #  Draw the filled in surface faces of the legos
-        # verts, norms, line_inds, quad_inds =
-            #grid_vertices((vote_grid>30)&(carve_grid<30))
-        if 1 and solid_blocks:
-            blocks = solid_blocks
-            glEnableClientState(GL_VERTEX_ARRAY)
-            glVertexPointeri(blocks['vertices'])
-            # glColor(0.3,0.3,0.3)
-            glEnableClientState(GL_COLOR_ARRAY)
-            glColorPointerf(np.abs(blocks['normals']))
-            glDrawElementsui(GL_QUADS, blocks['quad_inds'])
-            glDisableClientState(GL_COLOR_ARRAY)
-            glColor(1,1,1,1)
-            #glColor(0.1,0.1,0.1)
-            glDrawElementsui(GL_LINES, blocks['line_inds'])
-            glDisableClientState(GL_VERTEX_ARRAY)
         glPopMatrix()
 
         # Draw the shadow blocks (occlusions)
@@ -233,7 +233,7 @@ def update(X,Y,Z,UV=None,rgb=None,COLOR=None,AXES=None):
         if 1:
             glLineWidth(1)
             glBegin(GL_LINES)
-            GR = grid.GRIDRAD
+            GR = config.GRIDRAD
             glColor3f(0.2,0.2,0.4)
             for j in range(0,1):
                 for i in range(-GR,GR+1):

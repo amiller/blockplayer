@@ -20,7 +20,13 @@ speedup.normals.argtypes = [matarg, matarg, matarg,
                             matarg, ctypes.c_int, ctypes.c_int]
 
 
-def normals_opencl(depth, mask=None, rect=((0,0),(640,480)), win=7):
+def normals_opencl(depth, mask=None, rect=((0,0),(640,480)), win=6):
+    def from_rect(m,rect):
+        (l,t),(r,b) = rect
+        return m[t:b,l:r]
+
+    opencl.set_rect(rect)
+    depth = from_rect(depth,rect).astype('f')
     (l,t),(r,b) = rect
     assert depth.dtype == np.float32
     assert depth.shape == (b-t, r-l)
@@ -28,6 +34,8 @@ def normals_opencl(depth, mask=None, rect=((0,0),(640,480)), win=7):
 
     if mask is None:
         mask = np.ones((b-t,r-l),'bool')
+    else:
+        mask = np.array(from_rect(mask,rect))
 
     global filt
     filt = scipy.ndimage.uniform_filter(depth,win)

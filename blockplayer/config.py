@@ -27,3 +27,6 @@ LW = 0.0164
 # Jenga Block sizes FIXME:(needs to be remeasured)
 #LH = 0.0150
 #LW = 0.0200
+
+GRIDRAD = 18
+bounds = (-GRIDRAD,0,-GRIDRAD),(GRIDRAD,9,GRIDRAD)

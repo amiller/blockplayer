@@ -2,8 +2,7 @@ from OpenGL.GL import *
 from OpenGL.GL.framebufferobjects import *
 import numpy as np
 import config
-import grid
-import lattice
+import blockdraw
 
 if not 'initialized' in globals():
     initialized = False
@@ -63,9 +62,9 @@ def render_blocks(occ_grid, modelmat, rect=((0,0),(640,480))):
     glMultMatrixf(np.linalg.inv(modelmat).transpose())
 
     glScale(config.LW, config.LH, config.LW)
-    glTranslate(*grid.bounds[0])
+    glTranslate(*config.bounds[0])
 
-    blocks = grid.grid_vertices(occ_grid)
+    blocks = blockdraw.grid_vertices(occ_grid, None)
 
     glEnableClientState(GL_VERTEX_ARRAY)
     glVertexPointeri(blocks['vertices'])
@@ -89,3 +88,66 @@ def render_blocks(occ_grid, modelmat, rect=((0,0),(640,480))):
     glBindFramebuffer(GL_FRAMEBUFFER,0)
 
     return coords, depth*3000
+
+
+def stencil_carve(depth, modelmat, occ_grid, rect=((0,0),(640,480))):
+    global coords, b_total, b_occ, b_vac, depthB
+
+    (L,T),(R,B) = rect
+    L,T,R,B = map(int, (L,T,R,B))
+    coords, depthB = render_blocks(occ_grid,
+                                   modelmat,
+                                   rect=rect)
+    #print depth.mean(), occ_grid.mean(), rect, depthB.mean()
+    assert coords.dtype == np.uint8
+    assert depthB.dtype == np.float32
+    assert depth.dtype == np.uint16
+    assert coords.shape[2] == 4
+    assert coords.shape[:2] == depthB.shape == depth.shape == (480,640)
+
+    b_total = np.zeros_like(occ_grid).astype('f')
+    b_occ = np.zeros_like(occ_grid).astype('f')
+    b_vac = np.zeros_like(occ_grid).astype('f')
+
+    gridmin = np.array(config.bounds[0])
+    gridmax = np.array(config.bounds[1])
+    gridlen = gridmax-gridmin
+    import scipy.weave
+    code = """
+    for (int i = T; i < B; i++) {
+      for (int j = L; j < R; j++) {
+        int ind = i*640+j;
+        int dB = depthB[ind];
+        int d = depth[ind];
+
+        if (dB<2047) {
+           int x = coords[ind*4+0];
+           int y = coords[ind*4+1];
+           int z = coords[ind*4+2];
+           int coord = gridlen[1]*gridlen[2]*x + gridlen[2]*y + z;
+           b_total[coord]++;
+           if (d<2047) {
+             if (dB+5 < d) b_vac[coord]++;
+             if (dB-10 < d && d < dB+10) b_occ[coord]++;
+           }
+        }
+      }
+    }
+    """
+    if 1:
+        scipy.weave.inline(code, ['b_total', 'b_occ', 'b_vac',
+                                  'coords',
+                                  'depthB', 'depth',
+                                  'gridlen',
+                                  'T','B','L','R'])
+    else:
+        bins = [np.arange(0,gridmax[i]-gridmin[i]+1)-0.5
+                for i in range(3)]
+        c = coords[:,:,:3].reshape(-1,3)
+        w = ((depth<2047)&(depthB<2047)).flatten()
+        b_total,_ = np.histogramdd(c, bins, weights=w)
+        b_occ,_ = np.histogramdd(c, bins, weights=w&
+                                 (np.abs(depthB-depth)<5).flatten())
+        b_vac,_ = np.histogramdd(c, bins, weights=w&
+                                 (depthB+5<depth).flatten())
+    return b_occ, b_vac, b_total

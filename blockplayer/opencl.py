@@ -451,10 +451,14 @@ def compute_gridinds(xfix, zfix, LW, LH, gridmin, gridmax):
   assert gridmin.shape == (4,)
   assert gridmin.dtype == np.float32
   assert gridmin[3] == 0
+  assert gridmax.shape == (4,)
+  assert gridmax.dtype == np.float32
+  assert gridmax[3] == 0
+  
   evt = program.gridinds_compute(queue, (length,), None,
     gridinds_buf, model_buf,
     np.float32(xfix), np.float32(zfix), 
-    np.float32(LW),   np.float32(LH), 
+    np.float32(LW), np.float32(LH), 
     gridmin, gridmax)
     
   #import main
