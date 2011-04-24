@@ -5,6 +5,8 @@ import gzip_patch
 import gzip
 import config
 import opencl
+import os
+import grid
 
 depth = None
 
@@ -33,9 +35,20 @@ def load_dataset(pathname):
 
     # Load the config
     config.load(current_path)
+    try:
+        config.GT = load_gt()
+    except IOError:
+        config.GT = None
+
     setup_opencl()
 
     frame_num = 0
+
+
+def load_gt():
+    with open(os.path.join(current_path, 'config/gt.txt'),'r') as f:
+        s = f.read()
+    return grid.gt2grid(s)
 
 
 def load_random_dataset():

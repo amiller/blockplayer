@@ -199,27 +199,15 @@ def update(X,Y,Z,COLOR=None,AXES=None):
         glMultMatrixf(np.linalg.inv(modelmat).transpose())
         glScale(LW,LH,LW)
 
-        #glEnable(GL_LINE_SMOOTH)
-        #glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA)
-        #for (x,y,z),cind in zip(legos,legocolors):
-
         glPushMatrix()
         glTranslate(*config.bounds[0])
-
         blockdraw.draw()
-
         glPopMatrix()
 
         # Draw the shadow blocks (occlusions)
         glDisable(GL_POLYGON_OFFSET_FILL)
-
-        # Draw the outlines for the lego blocks
-        glColor(1,1,1,0.8)
-
-        glDisable(GL_LIGHTING)
-        glDisable(GL_COLOR_MATERIAL)
 
         # Draw the axes for the model coordinate space
         glLineWidth(3)

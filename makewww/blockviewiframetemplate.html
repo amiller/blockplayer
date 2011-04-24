@@ -18,7 +18,9 @@
 		<script type="text/javascript" src="Plane.js"></script>
 		<script type="text/javascript" src="Cube.js"></script>
 		<script type="text/javascript">
-		        var gridsrc = {{ gstr }};
+		        var grid_red = {{ red }};
+		        var grid_yellow = {{ yellow }};
+		        var grid_blue = {{ blue }};
 
 			var container, interval,
 			camera, scene, renderer,
@@ -123,7 +125,9 @@
 				document.addEventListener( 'mouseup', onDocumentMouseUp, false );
 
 				document.addEventListener( 'mousewheel', onDocumentMouseWheel, false );
-				buildFromGrid(gridsrc);
+				buildFromGrid(grid_red, colors[0]);
+				buildFromGrid(grid_blue, colors[3]);
+				buildFromGrid(grid_yellow, colors[1]);
 			}
 
 			function onDocumentKeyDown( event ) {
@@ -245,10 +249,10 @@
 
 			}
 
-		    function buildFromGrid(gridsrc) {
+		    function buildFromGrid(gridsrc,color) {
 		      for (var i = 0; i < gridsrc.length; i++) {
 			var point = gridsrc[i];
-			var voxel = new THREE.Mesh(cube, new THREE.MeshColorFillMaterial(colors[0]));
+			var voxel = new THREE.Mesh(cube, new THREE.MeshColorFillMaterial(color));
 			voxel.position.x = (point[0])*50 + 25;		  
 			voxel.position.y = point[1]*50 + 25;
 			voxel.position.z = (point[2])*50 + 25;

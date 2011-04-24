@@ -10,60 +10,21 @@ except:
 from django import template
 import simplejson as json
 import glob
+import cPickle as pickle
+
 
 from blockplayer import config
 from blockplayer import dataset
 from blockplayer import grid
-from blockplayer import lattice
-from blockplayer import flatrot
-from blockplayer import preprocess
-from blockplayer import opencl
-from blockplayer import normals
 
 out_path = os.path.join('www','grid')
+
+
 if not 'ds' in globals(): ds = None
 
-from blockplayer import glxcontext
-glxcontext.init()
-import sys
-sys.stdout.write("GL Version String: ")
-glxcontext.printinfo()
 
-
-modelmat = None
-
-
-def once():
-    def from_rect(m,rect):
-        (l,t),(r,b) = rect
-        return m[t:b,l:r]
-
-    depth = dataset.depth
-    (mask,rect) = preprocess.threshold_and_mask(depth,config.bg)
-
-    opencl.set_rect(rect)
-    normals.normals_opencl(from_rect(depth,rect).astype('f'),
-                           np.array(from_rect(mask,rect)), rect,
-                           6)
-
-    global modelmat
-
-    mat = np.eye(4,dtype='f')
-    if modelmat is None:
-        mat[:3,:3] = flatrot.flatrot_opencl()
-        mat = lattice.lattice2_opencl(mat)
-    else:
-        mat = modelmat.copy()
-        mat[:3,:3] = flatrot.flatrot_opencl(modelmat[:3,:])
-        mat = lattice.lattice2_opencl(mat)
-
-    grid.add_votes(lattice.meanx, lattice.meanz, depth, rect, use_opencl=True)
-    modelmat = lattice.modelmat
-
-
-def write_grid():
+def write_grid(ds):
     runs = []
-    global ds
     for d in ds:
         run = dict(name=d['name'],
                    frames=d['frames'],
@@ -113,41 +74,43 @@ def run_grid():
         dataset.load_dataset(name)
         name = os.path.split(name)[1]
 
-        d = dict(name=name)
+        with open(os.path.join('data/experiments/output/',name,
+                               'output.pkl'),'r') as f:
+            output = pickle.load(f)
+        with open(os.path.join('data/experiments/output/',name,
+                               'final_output.txt'),'r') as f:
+            final_output = f.read()
+
         folder = os.path.join(out_path, name)
         os.mkdir(folder)
 
-        global modelmat
-        modelmat = None
-        grid.initialize()
+        print name
+        out = grid.gt2grid(final_output)
 
-        t1 = time.time()
-        while 1:
-            try:
-                dataset.advance()
-            except (IOError, ValueError):
-                break
-            once()
-        t2 = time.time()
+        def gridstr(g):
+            g = np.array(np.nonzero(g))
+            g = g.transpose() + config.bounds[0][:3]
+            gstr = json.dumps(g.tolist())
+            return gstr
 
-        d['frames'] = dataset.frame_num
-        d['time'] = t2-t1
-
-        global g
-        g = np.array(np.nonzero(grid.vote_grid&~grid.carve_grid))
-        g = g.transpose() + grid.bounds[0][:3]
-        gstr = json.dumps(g.tolist())
+        gt = config.GT
+        _,gt,_,_,_ = grid.xcorr_correction(out, gt)
+        red = gt & ~out
+        yellow = ~gt & out
+        blue = gt & out
 
         with open(os.path.join(out_path, '%s_block.html' % name),'w') as f:
-            f.write(tmp.render(template.Context(dict(gstr=gstr))))
+            f.write(tmp.render(template.Context(dict(red=gridstr(red),
+                                                     blue=gridstr(blue),
+                                                     yellow=gridstr(yellow)))))
 
         with open(os.path.join(out_path, '%s_block.txt' % name) ,'w') as f:
-            f.write(grid.grid2str())
+            f.write(grid.gt2grid(final_output))
 
-        ds.append(d)
+        ds.append(output)
+    return ds
 
 
 if __name__ == "__main__":
-    if ds is None:
-        run_grid()
-    write_grid()
+    ds = run_grid()
+    write_grid(ds)

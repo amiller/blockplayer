@@ -31,7 +31,13 @@ if not 'previous_estimate' in globals():
     initialize()
 
 
-def grid2str(occ):
+def gt2grid(gtstr):
+    g = np.array(map(lambda _: map(lambda __: tuple(__), _), eval(gtstr)))
+    g = np.rollaxis(g,1)
+    return g=='*'
+
+
+def grid2gt(occ):
     m = np.choose(occ, (' ', '*'))
     layers = [[''.join(_) for _ in m[:,i,:]]
               for i in range(m.shape[1])]
@@ -66,8 +72,8 @@ def window_correction(occA, vacA, occB, vacB):
     #print [occ.shape for occ in occR.values()]
 
     def error(t):
-        #occB = occR[t[3]]
-        #vacB = vacR[t[3]]
+        occB = occR[t[3]]
+        vacB = vacR[t[3]]
         nv = np.roll(occB, t[0], 0)
         nv = np.roll(nv, t[2], 2)
         nc = np.roll(vacB, t[0], 0)
@@ -91,23 +97,39 @@ def xcorr_correction(A, B):
     Find the best fit parameters between two voxel grids (e.g. a ground truth
     and an output) using convolution
     Params:
-        A, B: boolean grids
+        A: boolean grid of output
+        B: boolean grid of ground truth
     """
-    def best_translate(g1, g2):
-        p1 = [g1.sum(i) for i in range(3)]
-        p2 = [g2.sum(i) for i in range(3)]
+    def convolve(p1, p2):
         import scipy.signal
         #cc = scipy.signal.correlate2d(p1[1],p2[1],'same')
-        cc = scipy.signal.fftconvolve(p1[1],p2[1][::-1,::-1])
+        cc = scipy.signal.fftconvolve(p1,p2[::-1,::-1])
         return cc
 
-    # Build templates out of the ground truth, especially sums/projections
-    return best_translate(A, B)
-    #for rotation in (0,1,2,3):
-    #    g = np.rot90(gt, rotation)
+    def best(cc):
+        ind = np.argmax(cc)
+        x,z = np.unravel_index(ind, cc.shape)
+        x -= cc.shape[0]/2
+        z -= cc.shape[0]/2
+        return x,z,cc.max()
 
     # Try all four rotations
-    pass
+    global convs
+    sA = [A.sum(i) for i in range(3)]
+    sB = [B.sum(i) for i in range(3)]
+
+    convs = [convolve(sA[1], np.rot90(sB[1], r)) for r in range(4)]
+
+    cc = [best(_) for _ in convs]
+    r = np.argmax([_[2] for _ in cc])
+    x,z,_ = cc[r]
+
+    B = apply_correction(B, x, z, r)
+    (bx,_,bz,br),e = window_correction(A,A&0,B,~B)
+    B = apply_correction(B, bx, bz, br)
+
+    err = float((A&~B).sum()+(B&~A).sum()) / B.sum()
+    return A, B, err, (x,z,r), (bx,bz,e)
 
 
 def show_votegrid(vg, color=(1,0,0), opacity=1):
@@ -128,15 +150,6 @@ def show_votegrid(vg, color=(1,0,0), opacity=1):
     X,Y,Z = np.array(gridmax)-gridmin
     #mlab.axes(extent=[0,0,0,X,Y,Z])
     mlab.draw()
-
-
-def load_gt():
-    # This is probably a hack! I don't know where to put the groundtruth
-    with open(os.path.join(dataset.current_path, 'config/gt.txt'),'r') as f:
-        s = f.read()
-    g = np.array(map(lambda _: map(lambda __: tuple(__), _), eval(s)))
-    g = np.rollaxis(g,1)
-    return g=='*'
 
 
 def has_previous_estimate():
