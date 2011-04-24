@@ -103,7 +103,7 @@ def run_grid():
             t2 = time.time()
             total += t2-t1
 
-            output.append((R_correct, grid.occ))
+            output.append((R_correct.copy(), grid.occ.copy()))
 
         d['frames'] = dataset.frame_num
         d['time'] = total
@@ -112,7 +112,7 @@ def run_grid():
             pickle.dump(d, f)
 
         with open(os.path.join(folder, 'final_output.txt'),'w') as f:
-            f.write(grid.grid2str(grid.occ))
+            f.write(grid.grid2gt(grid.occ))
 
 
 if __name__ == "__main__":
