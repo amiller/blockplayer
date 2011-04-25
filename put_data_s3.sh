@@ -13,7 +13,7 @@ do
   if [ ${set}test -nt ../archives/$set.tar.gz ]
   then
     ln -sd `pwd`/$set data/sets/$set
-    tar -chvf ../archives/$set.tar.gz data/ > /dev/null
+    tar -chzvf ../archives/$set.tar.gz data/ > /dev/null
     echo "Compressed dataset \"$set\" to data/archives/$set.tar.gz"
     rm data/sets/$set
   else

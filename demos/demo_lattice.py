@@ -1,26 +1,22 @@
 import numpy as np
 import pylab
 from OpenGL.GL import *
-import freenect
 
-import blockplayer.visuals.pointwindow
+if not 'FOR_REAL' in globals():
+    FOR_REAL = False
+
+from blockplayer.visuals.pointwindow import PointWindow
+global window
+if not 'window' in globals():
+    window = PointWindow(title='demo_lattice', size=(640,480))
+
 from blockplayer import dataset
 from blockplayer import config
 from blockplayer import preprocess
 from blockplayer import normals
 from blockplayer import opencl
 from blockplayer import lattice
-from blockplayer import flatrot
-
-
-if not 'FOR_REAL' in globals():
-    FOR_REAL = False
-
-
-from blockplayer.visuals.pointwindow import PointWindow
-global window
-if not 'window' in globals():
-    window = PointWindow(title='demo_lattice', size=(640,480))
+from blockplayer import grid
 
 
 def once():
@@ -29,7 +25,8 @@ def once():
         global depth
         depth = dataset.depth
     else:
-        depth,_ = freenect.sync_get_depth()
+        opennpy.sync_update()
+        depth,_ = opennpy.sync_get_depth()
 
     def from_rect(m,rect):
         (l,t),(r,b) = rect
@@ -39,18 +36,19 @@ def once():
 
     (mask,rect) = preprocess.threshold_and_mask(depth,config.bg)
 
-    opencl.set_rect(rect)
-    normals.normals_opencl(from_rect(depth,rect).astype('f'),
-                           np.array(from_rect(mask,rect)), rect,
-                           6)
+    # Compute the surface normals
+    normals.normals_opencl(depth, mask, rect)
 
-    mat = np.eye(4,dtype='f')
-    mat[:3,:3] = flatrot.flatrot_opencl()
+    # Find the lattice orientation and then translation
+    global R_oriented, R_aligned, R_correct
+    R_oriented = lattice.orientation_opencl()
+    R_aligned = lattice.translation_opencl(R_oriented)
 
-    mat = lattice.lattice2_opencl(mat)
-    #print 'flatrot.dm:', flatrot.dm,\
-    #      'lat.dmx:', lattice.dmx, lattice.countx,\
-    #      'lat.dmy:', lattice.dmy, lattice.county
+    global modelmat
+    if modelmat is None:
+        modelmat = R_aligned.copy()
+    else:
+        modelmat,_ = grid.nearest(modelmat, R_aligned)
 
     global face, Xo, Yo, Zo
     _,_,_,face = np.rollaxis(opencl.get_modelxyz(),1)
@@ -63,9 +61,6 @@ def once():
 
     update(Xo,Yo,Zo,COLOR=(R,G,B,R*0+1))
 
-    global modelmat
-    modelmat = mat
-
     window.clearcolor = [1,1,1,0]
     window.Refresh()
     pylab.waitforbuttonpress(0.005)
@@ -75,11 +70,26 @@ def resume():
     while 1: once()
 
 
-def go(forreal=False):
+def start(dset=None, frame_num=0):
+    global modelmat
+    modelmat = None
+
+    if not FOR_REAL:
+        if dset is None:
+            dataset.load_random_dataset()
+        else:
+            dataset.load_dataset(dset)
+        while dataset.frame_num < frame_num:
+            dataset.advance()
+    else:
+        config.load('data/newest_calibration')
+        dataset.setup_opencl()
+
+
+def go(dset=None, frame_num=0, forreal=False):
     global FOR_REAL
     FOR_REAL = forreal
-    if not FOR_REAL:
-        dataset.load_random_dataset()
+    start(dset, frame_num)
     resume()
 
 

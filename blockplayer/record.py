@@ -1,4 +1,4 @@
-import freenect
+import opennpy
 import numpy as np
 import os
 import shutil
@@ -19,12 +19,11 @@ depth_cache = []
 
 
 def preview():
-    (depth,_) = freenect.sync_get_depth()
+    opennpy.sync_update()
+    (depth,_) = opennpy.sync_get_depth()
     global depth_cache
     depth_cache.append(np.array(depth))
     depth_cache = depth_cache[-5:]
-    for d in depth_cache:
-        depth *= (d<2047)
     show_depth('depth', depth)
 
 
@@ -35,6 +34,7 @@ def go():
 
 
 def record(filename=None):
+    opennpy.align_depth_to_rgb()
     if filename is None:
         filename = str(np.random.rand())
 
@@ -48,8 +48,11 @@ def record(filename=None):
     frame = 0
     try:
         while 1:
-            (depth,_) = freenect.sync_get_depth()
+            opennpy.sync_update()
+            (depth,_) = opennpy.sync_get_depth()
+            (rgb,_) = opennpy.sync_get_video()
             np.save('%s/depth_%05d.npy' % (foldername,frame), depth)
+            cv.SaveImage('%s/rgb_%05d.png' % (foldername,frame), rgb)
 
             if frame % 30 == 0:
                 print 'frame: %d' % frame

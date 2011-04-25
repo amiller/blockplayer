@@ -237,8 +237,8 @@ def merge_with_previous(occ_, vac_, occ_stencil, vac_stencil):
     # Only allow 'uncarving' of elements attached to known blocks
     import scipy.ndimage
     global occ, vac
-    cmask = scipy.ndimage.binary_dilation(occ)
-    vac[occ_stencil&cmask] = 0
+    #cmask = scipy.ndimage.binary_dilation(occ)
+    #vac[occ_stencil&cmask] = 0
     vac |= vac_stencil | vac_
 
     #vote_grid = np.maximum(occ_grid, vote_grid)

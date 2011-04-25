@@ -1,124 +1,128 @@
-"""
-These are some functions to help work with kinect camera calibration and projective
-geometry. 
-
-Tasks:
-- Convert the kinect depth image to a metric 3D point cloud
-- Convert the 3D point cloud to texture coordinates in the RGB image
-
-Notes about the coordinate systems:
- There are three coordinate systems to worry about. 
- 1. Kinect depth image:
-    u,v,depth
-    u and v are image coordinates, (0,0) is the top left corner of the image
-                               (640,480) is the bottom right corner of the image
-    depth is the raw 11-bit image from the kinect, where 0 is infinitely far away
-      and larger numbers are closer to the camera
-      (2047 indicates an error pixel)
-      
- 2. Kinect rgb image:
-    u,v
-    u and v are image coordinates (0,0) is the top left corner
-                              (640,480) is the bottom right corner
-                              
- 3. XYZ world coordinates:
-    x,y,z
-    The 3D world coordinates, in meters, relative to the depth camera. 
-    (0,0,0) is the camera center. 
-    Negative Z values are in front of the camera, and the positive Z direction points
-       towards the camera. 
-    The X axis points to the right, and the Y axis points up. This is the standard 
-       right-handed coordinate system used by OpenGL.
-    
-
-"""
 import numpy as np
+import config
+
+lut = np.arange(5000).astype('f')
+lut[1:] = 1000./lut[1:]
+lut[0] = -1e8
 
 
-def depth2xyzuv(depth, u=None, v=None):
-  """
-  Return a point cloud, an Nx3 array, made by projecting the kinect depth map 
-    through intrinsic / extrinsic calibration matrices
-  Parameters:
-    depth - comes directly from the kinect 
-    u,v - are image coordinates, same size as depth (default is the original image)
-  Returns:
-    xyz - 3D world coordinates in meters (Nx3)
-    uv - image coordinates for the RGB image (Nx3)
-  
-  You can provide only a portion of the depth image, or a downsampled version of
-    the depth image if you want; just make sure to provide the correct coordinates
-    in the u,v arguments. 
-    
-  Example:
-    # This downsamples the depth image by 2 and then projects to metric point cloud
-    u,v = mgrid[:480:2,:640:2]
-    xyz,uv = depth2xyzuv(freenect.sync_get_depth()[::2,::2], u, v)
-    
-    # This projects only a small region of interest in the upper corner of the depth image
-    u,v = mgrid[10:120,50:80]
-    xyz,uv = depth2xyzuv(freenect.sync_get_depth()[v,u], u, v)
-  """
-  if u is None or v is None:
-    u,v = np.mgrid[:480,:640]
-  
-  # Build a 3xN matrix of the d,u,v data
-  C = np.vstack((u.flatten(), v.flatten(), depth.flatten(), 0*u.flatten()+1))
-
-  # Project the duv matrix into xyz using xyz_matrix()
-  X,Y,Z,W = np.dot(xyz_matrix(),C)
-  X,Y,Z = X/W, Y/W, Z/W
-  xyz = np.vstack((X,Y,Z)).transpose()
-  xyz = xyz[Z<0,:]
-
-  # Project the duv matrix into U,V rgb coordinates using rgb_matrix() and xyz_matrix()
-  U,V,_,W = np.dot(np.dot(uv_matrix(), xyz_matrix()),C)
-  U,V = U/W, V/W
-  uv = np.vstack((U,V)).transpose()    
-  uv = uv[Z<0,:]       
-
-  # Return both the XYZ coordinates and the UV coordinates
-  return xyz, uv
+def recip_depth_openni(depth):
+    import scipy.weave
+    assert depth.dtype == np.uint16
+    output = np.empty(depth.shape,'f')
+    N = np.prod(depth.shape)
+    code = """
+    int i;
+    for (i = 0; i < (int)N; i++) {
+      output[i] = lut[depth[i]];
+    }
+    """
+    scipy.weave.inline(code, ['output','depth','lut','N'])
+    return output
 
 
-def uv_matrix():
-  """
-  Returns a matrix you can use to project XYZ coordinates (in meters) into
-      U,V coordinates in the kinect RGB image
-  """
-
-  rot = np.array([9.9998802393075870e-01, -6.2977998218913971e-04,
-       4.8533877065907388e-03, 7.2759751545855894e-04,
-       9.9979611553846304e-01, -2.0179146564111142e-02,
-       -4.8396897536878121e-03, 2.0182436210091532e-02,
-       9.9978460013730641e-01]).reshape(3,3)
-
-  trans = np.array([[2.3531805894121169e-02, -1.3769320426104585e-03,
-       1.8042422163477460e-02]])
-
-  I = np.eye(3); I[1,1]=-1; I[2,2]=-1;
-  rot = np.dot(I, np.dot(rot.transpose(), I))
-  trans = np.dot(I, -trans.transpose())
-  
-  m = np.hstack((rot, trans))
-  m = np.vstack((m, np.array([[0,0,0,1]])))
-  KK = np.array([[-521, 0, 330, 0],
-                 [0, 521, 272, 0],
-                 [0, 0, 0, 1],
-                 [0, 0, 1, 0]])
-  m = np.dot(KK, (m))
-  return m
+def projection():
+    if config.ALIGNED:
+        return aligned_projection()
+    else:
+        return unaligned_projection()
 
 
-def xyz_matrix():
-  fx = 583.0
-  fy = 583.0
-  cx = 321
-  cy = 249
-  a = -0.0028300396
-  b = 3.1006268
-  mat = np.array([[1/fx, 0, 0, -cx/fx],
-                  [0, -1/fy, 0, cy/fy],
-                  [0,   0, 0,    -1],
-                  [0,   0, a,     b]])
-  return mat
+def aligned_projection():
+    """
+    Camera matrix for the aligned
+    """
+    fx = 528.0
+    fy = 528.0
+    cx = 320.0
+    cy = 267.0
+
+    mat = np.array([[fx, 0, -cx, 0],
+                    [0, -fy, -cy, 0],
+                    [0, 0, 0, 1],
+                    [0, 0, -1., 0]]).astype('f')
+    return np.ascontiguousarray(mat)
+
+
+def unaligned_projection():
+    """
+    Camera matrix for the aligned
+    """
+    fx = 575.8
+    fy = 575.8
+    cx = 320.0
+    cy = 240.0
+
+    mat = np.array([[fx, 0, -cx, 0],
+                    [0, -fy, -cy, 0],
+                    [0, 0, 0, 1],
+                    [0, 0, -1., 0]]).astype('f')
+    return np.ascontiguousarray(mat)
+
+
+full_vu = np.mgrid[:480,:640].astype('f')
+
+
+def convertOpenNI2Real_weave(depth, u=None, v=None,
+                       mat=np.ascontiguousarray(
+                                np.linalg.inv(projection()))):
+    assert mat.dtype == np.float32
+    assert mat.dtype == np.float32
+    assert mat.shape == (4,4)
+    assert mat.flags['C_CONTIGUOUS']
+    assert depth.dtype == np.uint16
+
+    if u is None or v is None: v,u = full_vu
+    assert depth.shape == u.shape == v.shape
+
+    X,Y = u,v
+    x,y,z = [np.empty(depth.shape, 'f') for i in range(3)]
+
+    N = np.prod(depth.shape)
+    code = """
+    int i;
+    for (i = 0; i < (int)N; i++) {
+      float Z = lut[depth[i]];
+      float x_ = X[i]*mat[0] + Y[i]*mat[1] + Z*mat[2] + mat[3];
+      float y_ = X[i]*mat[4] + Y[i]*mat[5] + Z*mat[6] + mat[7];
+      float z_ = X[i]*mat[8] + Y[i]*mat[9] + Z*mat[10] + mat[11];
+      float w = X[i]*mat[12] + Y[i]*mat[13] + Z*mat[14] + mat[15];
+      w = 1/w;
+      x[i] = x_*w;
+      y[i] = y_*w;
+      z[i] = z_*w;
+    }
+    """
+    import scipy.weave
+    scipy.weave.inline(code, ['X','Y','depth','x','y','z','N','mat','lut'])
+    return x,y,z
+
+
+def convertOpenNI2Real_numpy(depth, u=None, v=None,
+                       mat=np.linalg.inv(projection())):
+
+    if u is None or v is None: v,u = full_vu
+
+    X,Y,Z = u,v, recip_depth_openni(depth)
+    x,y,z = [np.empty(depth.shape, 'f') for i in range(3)]
+
+    x = X*mat[0,0] + Y*mat[0,1] + Z*mat[0,2] + mat[0,3]
+    y = X*mat[1,0] + Y*mat[1,1] + Z*mat[1,2] + mat[1,3]
+    z = X*mat[2,0] + Y*mat[2,1] + Z*mat[2,2] + mat[2,3]
+    w = X*mat[3,0] + Y*mat[3,1] + Z*mat[3,2] + mat[3,3]
+    w = 1/w
+    return x*w, y*w, z*w
+
+
+def convertReal2OpenNI(X, Y, Z, mat=projection()):
+
+    x = X*mat[0,0] + Y*mat[0,1] + Z*mat[0,2] + mat[0,3]
+    y = X*mat[1,0] + Y*mat[1,1] + Z*mat[1,2] + mat[1,3]
+    z = X*mat[2,0] + Y*mat[2,1] + Z*mat[2,2] + mat[2,3]
+    w = X*mat[3,0] + Y*mat[3,1] + Z*mat[3,2] + mat[3,3]
+    _z = 1000.*w/z
+    w = 1/w
+    return x*w, y*w, _z
+
+
+from calibkinect_cy import convertOpenNI2Real

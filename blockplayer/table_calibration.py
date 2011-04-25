@@ -1,10 +1,10 @@
 from OpenGL.GL import *
 from OpenGL.GL.framebufferobjects import *
 import numpy as np
-import freenect
 import normals
 import calibkinect
 import config
+import opennpy
 from pylab import *
 
 
@@ -32,7 +32,8 @@ def run_calib():
     """
     global points
     print("Getting an image from the camera")
-    depth, _ = freenect.sync_get_depth()
+    opennpy.sync_update()
+    depth, _ = opennpy.sync_get_depth()
 
     fig = figure(1)
     clf()
@@ -72,22 +73,25 @@ def find_plane(depth, boundpts):
         mask &= ((uv[0]-x)*dy - (uv[1]-y)*dx)<0
 
     # Borrow the initialization from calibkinect
-    # FIXME (this is assumed to be the case by normals.project, etc)
-    KK = calibkinect.xyz_matrix().astype('f')
+    KK = np.linalg.inv(calibkinect.projection()).astype('f')
+    KK = np.ascontiguousarray(KK)
 
     # Find the average plane going through here
-    n,w = normals.normals_c(depth.astype(np.float32))
+    global n,w
+    n,w = normals.normals_c(depth)
     maskw = mask & (w>0)
     abc = n[maskw].mean(0)
     abc /= np.sqrt(np.dot(abc,abc))
     a,b,c = abc
-    x,y,z = [_[maskw].mean() for _ in normals.project(depth)]
+    x,y,z = [_[maskw].mean() for _ in calibkinect.convertOpenNI2Real(depth)]
     d = -(a*x+b*y+c*z)
     tableplane = np.array([a,b,c,d])
     #tablemean = np.array([x,y,z])
 
     # Backproject the table plane into the image using inverse transpose
+    global tb0
     tb0 = np.dot(KK.transpose(), tableplane)
+    tb0[2] = tb0[2]
 
     # Build a matrix projecting sensor points to an system with
     # the origin on the table, and Y pointing up from the table
@@ -103,6 +107,7 @@ def find_plane(depth, boundpts):
 
     KtableKK = np.dot(Ktable, KK).astype('f')
 
+    global boundptsM
     boundptsM = []
     for (up,vp) in boundpts:
         # First project the image points (u,v) onto to the (imaged) tableplane
@@ -130,10 +135,11 @@ def find_plane(depth, boundpts):
     glLoadIdentity()
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
-    glOrtho(0,640,0,480,0,-3000)
+    glOrtho(0,640,0,480,0,-10)
     glMultMatrixf(np.linalg.inv(KtableKK).transpose())
 
     def draw():
+        glClear(GL_DEPTH_BUFFER_BIT|GL_COLOR_BUFFER_BIT)
         glEnable(GL_CULL_FACE)
         glBegin(GL_QUADS)
         for x,y,z in boundptsM:
@@ -158,10 +164,14 @@ def find_plane(depth, boundpts):
                               GL_DEPTH_COMPONENT, GL_FLOAT).reshape(480,640);
     glFrontFace(gf)
 
-    openglbgHi *= 3000
-    openglbgLo *= 3000
+    global hi,lo
+    openglbgHi = 1000./(openglbgHi*10)
+    openglbgLo = 1000./(openglbgLo*10)
+    lo = np.array(openglbgLo)
+    hi = np.array(openglbgHi)
+
     #openglbgLo[openglbgLo>=2047] = 0
-    openglbgHi[openglbgHi>=2047] = 0
+    #openglbgHi[np.isnan(openglbgHi)] = 0
     openglbgLo[openglbgHi==openglbgLo] = 0
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -169,14 +179,14 @@ def find_plane(depth, boundpts):
     glDeleteFramebuffers(1, [fbo]);
 
     background = np.array(depth)
-    background[~mask] = 2047
-    background = np.minimum(background,openglbgHi)
+    background[~mask] = 0
+    background = np.maximum(background,openglbgHi)
     #backgroundM = normals.project(background)
 
     openglbgLo = openglbgLo.astype(np.uint16)
     background = background.astype(np.uint16)
-    background[background>=3] -= 3
-    openglbgLo += 3
+    background[background>=5] -= 5
+    #openglbgLo += 5
 
     return dict(
         bgLo=openglbgLo,

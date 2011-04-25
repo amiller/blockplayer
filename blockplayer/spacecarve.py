@@ -45,9 +45,9 @@ def carve(depth, modelmat):
     #depth_[depth==2047] = -np.inf
 
     import scipy.ndimage
-    d = scipy.ndimage.map_coordinates(depth_, (y,x), order=0,
-                                      prefilter=False,
-                                      cval=-np.inf)
+    d = 1000./scipy.ndimage.map_coordinates(depth_, (y,x), order=0,
+                                            prefilter=False,
+                                            cval=-np.inf)
 
     # Project to metric depth
     np.seterr(invalid='ignore')

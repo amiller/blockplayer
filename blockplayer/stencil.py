@@ -53,7 +53,7 @@ def render_blocks(occ_grid, modelmat, rect=((0,0),(640,480))):
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
     #glOrtho(L, R, T, B, 0, -3000)
-    glOrtho(0, 640, 0, 480, 0, -3000)
+    glOrtho(0, 640, 0, 480, 0, -10)
     glMatrixMode(GL_MODELVIEW)
     glLoadIdentity()
     KtableKK = np.dot(config.bg['Ktable'], config.bg['KK'])
@@ -76,9 +76,9 @@ def render_blocks(occ_grid, modelmat, rect=((0,0),(640,480))):
     glDisableClientState(GL_VERTEX_ARRAY)
     glFinish()
 
-    depth = np.zeros((480,640),dtype='f')+1.
+    depth = np.zeros((480,640),dtype='f')+10.
 
-    depth[T:B,L:R] = glReadPixels(L, T, R-L, B-T, GL_DEPTH_COMPONENT,
+    depth[T:B,L:R] = 100./glReadPixels(L, T, R-L, B-T, GL_DEPTH_COMPONENT,
                                   GL_FLOAT).reshape(B-T, R-L)
 
     coords = np.empty((480,640,4),dtype='u1')
@@ -87,7 +87,7 @@ def render_blocks(occ_grid, modelmat, rect=((0,0),(640,480))):
                         outputType='array').reshape(B-T, R-L, -1)
     glBindFramebuffer(GL_FRAMEBUFFER,0)
 
-    return coords, depth*3000
+    return coords, depth
 
 
 def stencil_carve(depth, modelmat, occ_grid, rect=((0,0),(640,480))):
@@ -144,7 +144,7 @@ def stencil_carve(depth, modelmat, occ_grid, rect=((0,0),(640,480))):
         bins = [np.arange(0,gridmax[i]-gridmin[i]+1)-0.5
                 for i in range(3)]
         c = coords[:,:,:3].reshape(-1,3)
-        w = ((depth<2047)&(depthB<2047)).flatten()
+        w = ((depth>0)&(depthB<10)).flatten()
         b_total,_ = np.histogramdd(c, bins, weights=w)
         b_occ,_ = np.histogramdd(c, bins, weights=w&
                                  (np.abs(depthB-depth)<5).flatten())

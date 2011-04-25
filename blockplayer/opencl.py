@@ -273,7 +273,8 @@ kernel void gridinds_compute(
 
 def setup_kernel(mats=None):
     if mats is None:
-        mats = (calibkinect.xyz_matrix(), np.eye(4))
+        mats = (np.ascontiguousarray(np.linalg.inv(calibkinect.projection())),
+                np.eye(4))
 
     KK, RT = mats
 
@@ -301,12 +302,14 @@ def setup_kernel(mats=None):
 setup_kernel()
 
 print program.get_build_info(context.devices[0], cl.program_build_info.LOG)
+
+
 def print_all():
   print_info(context.devices[0], cl.device_info)
   print_info(program, cl.program_info)
   print_info(program.normal_compute, cl.kernel_info)
   print_info(queue, cl.command_queue_info)
-  
+
 
 #print_all()
 mask_buf    = cl.Buffer(context, mf.READ_WRITE, 480*640)

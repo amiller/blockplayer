@@ -1,9 +1,17 @@
 import numpy as np
 import pylab
 from OpenGL.GL import *
-import freenect
+import opennpy
 
-from blockplayer import dataset
+if not 'FOR_REAL' in globals():
+    FOR_REAL = False
+
+from blockplayer.visuals.pointwindow import PointWindow
+global window
+if not 'window' in globals():
+    window = PointWindow(title='demo_grid', size=(640,480))
+    window.Move((0,0))
+
 from blockplayer import config
 from blockplayer import preprocess
 from blockplayer import normals
@@ -14,33 +22,23 @@ from blockplayer import spacecarve
 from blockplayer import stencil
 from blockplayer import occvac
 from blockplayer import blockdraw
+from blockplayer import dataset
 
 import cv
 
-from blockplayer.visuals.pointwindow import PointWindow
-global window
-if not 'window' in globals():
-    window = PointWindow(title='demo_grid', size=(640,480))
-    window.Move((0,0))
-
-
-if not 'FOR_REAL' in globals():
-    FOR_REAL = False
-
-
-depth_cache = []
-
 
 def once():
-    global depth, rgb
+    global depth
     if not FOR_REAL:
         dataset.advance()
         depth = dataset.depth
     else:
-        depth,_ = freenect.sync_get_depth()
-        rgb,_ = freenect.sync_get_video(0, freenect.VIDEO_RGB)
-        cv.NamedWindow('RGB',0)
-        #cv.ShowImage('RGB',rgb)
+        opennpy.sync_update()
+        depth,_ = opennpy.sync_get_depth()
+
+    def from_rect(m,rect):
+        (l,t),(r,b) = rect
+        return m[t:b,l:r]
 
     global mask, rect, modelmat
 
