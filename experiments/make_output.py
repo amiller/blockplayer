@@ -66,7 +66,7 @@ def once():
         occ_stencil, vac_stencil = grid.stencil_carve(depth, rect,
                                                       R_correct, occ, vac)
         grid.merge_with_previous(occ, vac, occ_stencil, vac_stencil)
-    grid.previous_estimate = grid.occ, grid.vac, R_correct
+    grid.previous_estimate = grid.occ, grid.vac, R_correct, grid.color
 
 
 def run_grid():
