@@ -34,6 +34,7 @@ def run_calib():
     print("Getting an image from the camera")
     opennpy.align_depth_to_rgb()
     opennpy.sync_update()
+    opennpy.sync_update()
     depth, _ = opennpy.sync_get_depth()
 
     fig = figure(1)
