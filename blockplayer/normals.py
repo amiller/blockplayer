@@ -31,7 +31,7 @@ def normals_opencl(depth, mask=None, rect=((0,0),(640,480)), win=6):
     (l,t),(r,b) = rect
     assert depth.dtype == np.uint16
     assert depth.shape == (b-t, r-l)
-    depth[depth==0] = -1e8  # 2047
+    #depth[depth==0] = -1e8  # 2047 this is taken care of by recip_depth
 
     if mask is None:
         mask = np.ones((b-t,r-l),'bool')

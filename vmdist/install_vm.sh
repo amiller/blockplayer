@@ -56,6 +56,26 @@ popd
 sudo ldconfig
 
 
+# OpenNI / Sensor2
+sudo apt-get remove -y mono-gmcs  # Get rid of mono! otherwise openni builds for it
+set +e; git clone https://github.com/OpenNI/OpenNI.git; set -e
+pushd OpenNI/Platform/Linux-x86/Build
+make && sudo make install
+popd
+
+set +e; git clone https://github.com/avin2/SensorKinect.git; set -e
+pushd SensorKinect/Platform/Linux-x86/Build
+make && sudo make install
+popd
+
+# OpenNPy
+set +e; git clone https://github.com/bwhite/opennpy.git; set -e
+pushd opennpy
+python setup.py && sudo python setup.py install
+popd
+
+
+
 # Opencv
 svn co https://code.ros.org/svn/opencv/trunk/opencv
 sudo mv /usr/local/lib/python2.6/site-packages /usr/local/lib/python2.6/backup.site-packages
@@ -68,12 +88,12 @@ popd
 
 
 # BlockPlayer
-set +e; git clone git@github.com:amiller/blockplayer.git; set -e
+set +e; git clone git://github.com/amiller/blockplayer.git; set -e
 pushd blockplayer
-./download.sh
 python setup.py build
 python setup.py build_ext --inplace
 sudo python setup.py install
+#./download.sh
 xvfb-run python makewww/make_normals.py
 xvfb-run python makewww/make_calib.py
 echo "Running lighttpd -Df lighttpd.conf"

@@ -21,8 +21,8 @@ def save(dir_path):
 # Duplo block sizes
 # LH = 0.018
 # LQ = 0.016
-LH = 0.0192
-LW = 0.0164
+LH = 0.018
+LW = 0.016
 
 # Jenga Block sizes FIXME:(needs to be remeasured)
 #LH = 0.0150

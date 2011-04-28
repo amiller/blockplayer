@@ -26,6 +26,14 @@ from blockplayer import dataset
 
 import cv
 
+from blockplayer import colormap
+
+
+def show_depth(name, depth):
+    im = cv.CreateImage((depth.shape[1],depth.shape[0]), 8, 3)
+    cv.SetData(im, colormap.color_map(depth))
+    cv.ShowImage(name, im)
+
 
 def once():
     global depth
@@ -69,9 +77,11 @@ def once():
         vac = occvac.vac = grid.apply_correction(vac, *c)
 
     # Further carve out the voxels using spacecarve
+    warn = np.seterr(invalid='ignore')
     vac = vac | spacecarve.carve(depth, R_aligned)
+    np.seterr(divide=warn['invalid'])
 
-    if 1 and grid.has_previous_estimate():
+    if 1 and grid.has_previous_estimate() and np.any(grid.occ):
         # Align the new voxels with the previous estimate
         R_correct, occ, vac = grid.align_with_previous(R_aligned, occ, vac)
     else:
@@ -86,24 +96,37 @@ def once():
 
     if 1:
         blockdraw.clear()
-        blockdraw.show_grid('occ', grid.occ&~occvac.occ,
-                            color=np.array([1,0.6,0.6,1]))
-        blockdraw.show_grid('occ1', grid.occ&occvac.occ,
-                            color=np.array([1,0,0,1]))
+        if 1:
+            blockdraw.show_grid('occ', grid.occ&~occvac.occ,
+                                color=np.array([1,0.6,0.6,1]))
+            blockdraw.show_grid('occ1', grid.occ&occvac.occ,
+                                color=np.array([1,0,0,1]))
 
-        if 1 and lattice.is_valid_estimate():
+        if 0 and lattice.is_valid_estimate():
             if 1:
-                blockdraw.show_grid('occvac', occ_stencil,
+                blockdraw.show_grid('occ_stencil', occ_stencil,
                                     color=np.array([1,1,0,1]))
-            if 0:
-                blockdraw.show_grid('o1', occvac.occ&~occ_stencil,
-                                    color=np.array([0,0,1,1]))
             if 1:
-                blockdraw.show_grid('o2', occvac.occ&vac_stencil,
+                blockdraw.show_grid('vac_stencil', vac_stencil,
+                                    color=np.array([1,0,1,1]))
+
+            if 0:
+                blockdraw.show_grid('o1', occvac.occ&occ_stencil,
+                                    color=np.array([0,0,1,1]))
+            if 0:
+                blockdraw.show_grid('o2', occvac.vac,
+                                    color=np.array([0,1,0,0.2]))
+            if 1:
+                blockdraw.show_grid('spacecarve',
+                                    spacecarve.vac&grid.occ,
                                     color=np.array([0,1,0,1]))
 
         #blockdraw.show_grid('vac', grid.vac,
         #                    color=np.array([0.6,1,0.6,0]))
+        if lattice.is_valid_estimate():
+            window.clearcolor=[0.9,1,0.9,0]
+        else:
+            window.clearcolor=[1,1,1,0]
         update_display()
         pylab.waitforbuttonpress(0.01)
         sys.stdout.flush()
@@ -127,6 +150,7 @@ def start(dset=None, frame_num=0):
             dataset.advance()
     else:
         config.load('data/newest_calibration')
+        opennpy.align_depth_to_rgb()
         dataset.setup_opencl()
 
 
@@ -172,7 +196,6 @@ def update(X,Y,Z,COLOR=None,AXES=None):
         color = color[mask,:]
 
     window.update_points(xyz, color)
-    window.clearcolor = [1,1,1,0]
     window.Refresh()
 
     @window.event

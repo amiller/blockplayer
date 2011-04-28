@@ -28,6 +28,7 @@ def preview():
 
 
 def go():
+    opennpy.align_depth_do_rgb()
     while 1:
         preview()
         pylab.waitforbuttonpress(0.005)
@@ -51,7 +52,10 @@ def record(filename=None):
             opennpy.sync_update()
             (depth,_) = opennpy.sync_get_depth()
             (rgb,_) = opennpy.sync_get_video()
+
             np.save('%s/depth_%05d.npy' % (foldername,frame), depth)
+
+            cv.CvtColor(rgb, rgb, cv.CV_RGB2BGR)
             cv.SaveImage('%s/rgb_%05d.png' % (foldername,frame), rgb)
 
             if frame % 30 == 0:

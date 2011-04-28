@@ -224,12 +224,13 @@ def stencil_carve(depth, rect, R_correct, occ, vac):
         cands = occ_old | occ
     else:
         cands = occ
+    global b_occ, b_vac, b_total
     b_occ, b_vac, b_total = stencil.stencil_carve(depth, R_correct,
                                                   cands, rect)
 
     global occ_stencil, vac_stencil
-    occ_stencil = (b_occ/(b_total+1.)>0.8) & (b_total>30)
-    vac_stencil = (b_vac/(b_total+1.)>0.8) & (b_total>30)
+    occ_stencil = (b_occ/(b_total+1.)>0.9) & (b_total>30)
+    vac_stencil = (b_vac/(b_total+1.)>0.9) & (b_total>60)
     return occ_stencil, vac_stencil
 
 
@@ -237,11 +238,9 @@ def merge_with_previous(occ_, vac_, occ_stencil, vac_stencil):
     # Only allow 'uncarving' of elements attached to known blocks
     import scipy.ndimage
     global occ, vac
-    #cmask = scipy.ndimage.binary_dilation(occ)
-    #vac[occ_stencil&cmask] = 0
-    vac |= vac_stencil | vac_
-
-    #vote_grid = np.maximum(occ_grid, vote_grid)
-    #vote_grid |= (occp>0.5)&(b_total>30)# (occp>0.5)(occH > 30)
+    cmask = scipy.ndimage.binary_dilation(occ)
+    #vac |= vac_stencil | vac_
+    vac |= vac_
+    vac[occ_stencil&cmask] = 0
     occ |= occ_
     occ[vac] = 0

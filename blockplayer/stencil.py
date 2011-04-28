@@ -39,6 +39,13 @@ def setup():
 
 
 def render_blocks(occ_grid, modelmat, rect=((0,0),(640,480))):
+    """
+    Returns the result of rendering occ_grid from the point of view of the
+    camera.
+        returns:
+            depthB: numpy array shape=(480,640) dtype=np.float32,
+                    distance in mm, just like the kinect (openni) 
+    """
     setup()
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 
@@ -53,7 +60,7 @@ def render_blocks(occ_grid, modelmat, rect=((0,0),(640,480))):
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
     #glOrtho(L, R, T, B, 0, -3000)
-    glOrtho(0, 640, 0, 480, 0, -10)
+    glOrtho(0, 640, 0, 480, -10, 0)
     glMatrixMode(GL_MODELVIEW)
     glLoadIdentity()
     KtableKK = np.dot(config.bg['Ktable'], config.bg['KK'])
@@ -76,14 +83,15 @@ def render_blocks(occ_grid, modelmat, rect=((0,0),(640,480))):
     glDisableClientState(GL_VERTEX_ARRAY)
     glFinish()
 
-    depth = np.zeros((480,640),dtype='f')+10.
+    depth = np.zeros((480,640),dtype='f')
 
-    depth[T:B,L:R] = 100./glReadPixels(L, T, R-L, B-T, GL_DEPTH_COMPONENT,
-                                  GL_FLOAT).reshape(B-T, R-L)
-
+    warn = np.seterr(divide='ignore')
+    depth[T:B,L:R] = 100/(1.0-glReadPixels(L, T, R-L, B-T, GL_DEPTH_COMPONENT,
+                                  GL_FLOAT).reshape(B-T, R-L))
+    np.seterr(divide=warn['divide'])
     coords = np.empty((480,640,4),dtype='u1')
     coords[T:B,L:R,:] = glReadPixels(L, T, R-L, B-T, GL_RGBA,
-                                     GL_UNSIGNED_BYTE,
+                                         GL_UNSIGNED_BYTE,
                         outputType='array').reshape(B-T, R-L, -1)
     glBindFramebuffer(GL_FRAMEBUFFER,0)
 
@@ -91,6 +99,9 @@ def render_blocks(occ_grid, modelmat, rect=((0,0),(640,480))):
 
 
 def stencil_carve(depth, modelmat, occ_grid, rect=((0,0),(640,480))):
+    """
+
+    """
     global coords, b_total, b_occ, b_vac, depthB
 
     (L,T),(R,B) = rect
@@ -120,14 +131,14 @@ def stencil_carve(depth, modelmat, occ_grid, rect=((0,0),(640,480))):
         int dB = depthB[ind];
         int d = depth[ind];
 
-        if (dB<2047) {
+        if (dB<1e6) {
            int x = coords[ind*4+0];
            int y = coords[ind*4+1];
            int z = coords[ind*4+2];
            int coord = gridlen[1]*gridlen[2]*x + gridlen[2]*y + z;
            b_total[coord]++;
-           if (d<2047) {
-             if (dB+5 < d) b_vac[coord]++;
+           if (d>0) {
+             if (dB+10 < d) b_vac[coord]++;
              if (dB-10 < d && d < dB+10) b_occ[coord]++;
            }
         }
@@ -141,13 +152,14 @@ def stencil_carve(depth, modelmat, occ_grid, rect=((0,0),(640,480))):
                                   'gridlen',
                                   'T','B','L','R'])
     else:
+        # This may be out of date - prefer the weave version
         bins = [np.arange(0,gridmax[i]-gridmin[i]+1)-0.5
                 for i in range(3)]
         c = coords[:,:,:3].reshape(-1,3)
-        w = ((depth>0)&(depthB<10)).flatten()
+        w = ((depth>0)&(depthB<inf)).flatten()
         b_total,_ = np.histogramdd(c, bins, weights=w)
         b_occ,_ = np.histogramdd(c, bins, weights=w&
-                                 (np.abs(depthB-depth)<5).flatten())
+                                 (np.abs(depthB-depth)<10).flatten())
         b_vac,_ = np.histogramdd(c, bins, weights=w&
-                                 (depthB+5<depth).flatten())
+                                 (depthB+10<depth).flatten())
     return b_occ, b_vac, b_total

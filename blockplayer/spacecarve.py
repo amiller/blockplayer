@@ -45,12 +45,13 @@ def carve(depth, modelmat):
     #depth_[depth==2047] = -np.inf
 
     import scipy.ndimage
+    warn = np.seterr(divide='ignore')
     d = 1000./scipy.ndimage.map_coordinates(depth_, (y,x), order=0,
                                             prefilter=False,
                                             cval=-np.inf)
 
     # Project to metric depth
-    np.seterr(invalid='ignore')
+
     mat = config.bg['KK']
     z = x*mat[2,0] + y*mat[2,1] + d*mat[2,2] + mat[2,3]
     w = x*mat[3,0] + y*mat[3,1] + d*mat[3,2] + mat[3,3]
@@ -62,8 +63,8 @@ def carve(depth, modelmat):
 
     length = np.sqrt((config.LW**2+
                       config.LH**2+
-                      config.LW**2))*0.5
-    np.seterr(invalid='warn')
+                      config.LW**2))
+    np.seterr(divide=warn['divide'])
 
     global vac
     vac = (d>0)&(dmet<drefmet-length)
