@@ -70,13 +70,13 @@ def once():
 
 
 def run_grid():
+
+    datasets = glob.glob('data/sets/*')
     try:
         shutil.rmtree(out_path)
     except:
         pass
     os.mkdir(out_path)
-
-    datasets = glob.glob('data/sets/*')
 
     for name in datasets:
     #for name in ('data/sets/cube',):

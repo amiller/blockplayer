@@ -8,6 +8,7 @@ import cPickle as pickle
 def load(dir_path):
     with open('%s/config/config.pkl' % dir_path, 'r') as f:
         globals().update(pickle.load(f))
+        globals()['LH'] = 0.0198
 
 
 def save(dir_path):
@@ -19,9 +20,7 @@ def save(dir_path):
 
 
 # Duplo block sizes
-# LH = 0.018
-# LQ = 0.016
-LH = 0.018
+LH = 0.0198
 LW = 0.016
 
 # Jenga Block sizes FIXME:(needs to be remeasured)

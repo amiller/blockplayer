@@ -72,5 +72,6 @@ def plot_errors():
 
 
 if __name__ == "__main__":
+    print "This is suppose to be run with IPython, otherwise it won't do anything"
     #run_grid()
     pass
