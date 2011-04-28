@@ -93,7 +93,7 @@ pushd blockplayer
 python setup.py build
 python setup.py build_ext --inplace
 sudo python setup.py install
-#./download.sh
+./download.sh
 xvfb-run python makewww/make_normals.py
 xvfb-run python makewww/make_calib.py
 echo "Running lighttpd -Df lighttpd.conf"
