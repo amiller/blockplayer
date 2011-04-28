@@ -3,6 +3,7 @@ from OpenGL.GL.framebufferobjects import *
 import numpy as np
 import config
 import blockdraw
+import cv
 
 if not 'initialized' in globals():
     initialized = False
@@ -44,7 +45,7 @@ def render_blocks(occ_grid, modelmat, rect=((0,0),(640,480))):
     camera.
         returns:
             depthB: numpy array shape=(480,640) dtype=np.float32,
-                    distance in mm, just like the kinect (openni) 
+                    distance in mm, just like the kinect (openni)
     """
     setup()
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
@@ -98,7 +99,7 @@ def render_blocks(occ_grid, modelmat, rect=((0,0),(640,480))):
     return coords, depth
 
 
-def stencil_carve(depth, modelmat, occ_grid, rect=((0,0),(640,480))):
+def stencil_carve(depth, modelmat, occ_grid, rgb=None, rect=((0,0),(640,480))):
     """
 
     """
@@ -123,6 +124,22 @@ def stencil_carve(depth, modelmat, occ_grid, rect=((0,0),(640,480))):
     gridmin = np.array(config.bounds[0])
     gridmax = np.array(config.bounds[1])
     gridlen = gridmax-gridmin
+
+    if rgb is None:
+        rgb = np.empty((480,640,3),'u1')
+
+    global RGBacc, RGB, HSV
+    RGBacc = np.zeros((b_total.shape[0],
+                       b_total.shape[1],
+                       b_total.shape[2], 3),'i')
+    RGB = np.zeros((b_total.shape[0],
+                    b_total.shape[1],
+                    b_total.shape[2], 3),'u1')
+    HSV = np.zeros((b_total.shape[0],
+                    b_total.shape[1],
+                    b_total.shape[2], 3),'u1')
+    assert rgb.dtype == np.uint8
+
     import scipy.weave
     code = """
     for (int i = T; i < B; i++) {
@@ -139,15 +156,27 @@ def stencil_carve(depth, modelmat, occ_grid, rect=((0,0),(640,480))):
            b_total[coord]++;
            if (d>0) {
              if (dB+10 < d) b_vac[coord]++;
-             if (dB-10 < d && d < dB+10) b_occ[coord]++;
+             if (dB-10 < d && d < dB+10) {
+               b_occ[coord]++;
+               RGBacc[coord*3+0] += rgb[ind*3+0];
+               RGBacc[coord*3+1] += rgb[ind*3+1];
+               RGBacc[coord*3+2] += rgb[ind*3+2];
+             }
            }
         }
       }
+    }
+    for (int i = 0; i < gridlen[0]*gridlen[1]*gridlen[2]; i++) {
+        float recip = 1./b_occ[i];
+        RGB[i*3+0] = (unsigned char) (RGBacc[i*3+0]*recip);
+        RGB[i*3+1] = (unsigned char) (RGBacc[i*3+1]*recip);
+        RGB[i*3+2] = (unsigned char) (RGBacc[i*3+2]*recip);
     }
     """
     if 1:
         scipy.weave.inline(code, ['b_total', 'b_occ', 'b_vac',
                                   'coords',
+                                  'RGB','RGBacc','rgb',
                                   'depthB', 'depth',
                                   'gridlen',
                                   'T','B','L','R'])
@@ -162,4 +191,9 @@ def stencil_carve(depth, modelmat, occ_grid, rect=((0,0),(640,480))):
                                  (np.abs(depthB-depth)<10).flatten())
         b_vac,_ = np.histogramdd(c, bins, weights=w&
                                  (depthB+10<depth).flatten())
+
+    cv.CvtColor(RGB.reshape(1,-1,3), HSV.reshape(1,-1,3), cv.CV_RGB2HSV);
+    HSV[:,:,:,1] = 255
+    HSV[:,:,:,2] = 255
+    cv.CvtColor(HSV.reshape(1,-1,3), RGB.reshape(1,-1,3), cv.CV_HSV2RGB);
     return b_occ, b_vac, b_total

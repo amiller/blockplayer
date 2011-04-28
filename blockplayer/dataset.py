@@ -7,6 +7,7 @@ import config
 import opencl
 import os
 import grid
+import cv
 
 depth = None
 
@@ -16,11 +17,17 @@ frame_num = None
 
 def advance(skip=1):
     # Load the image
-    global frame_num, depth
+    global frame_num, depth, rgb
     frame_num += skip
     with gzip.open('%s/depth_%05d.npy.gz' % (current_path, frame_num),
                    'rb') as f:
         depth = np.load(f)
+    try:
+        rgb = cv.LoadImage('%s/rgb_%05d.png' % (current_path, frame_num))
+        cv.CvtColor(rgb, rgb, cv.CV_RGB2BGR)
+        rgb = np.fromstring(rgb.tostring(),'u1').reshape(480,640,3)
+    except KeyboardInterrupt:
+        rgb = None
 
 
 def setup_opencl():

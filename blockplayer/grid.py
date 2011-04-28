@@ -20,14 +20,15 @@ def initialize():
     b_width = [config.bounds[1][i]-config.bounds[0][i]
                for i in range(3)]
 
-    global occ, vac, previous_estimate
+    global occ, vac, color, previous_estimate
     occ = np.zeros(b_width)>0
     vac = np.zeros(b_width)>0
+    color = np.zeros((b_width[0], b_width[1], b_width[2], 3),'u1')
     previous_estimate = None
 
 
 if not 'previous_estimate' in globals():
-    previous_estimate=occ=vac=occ_stencil=vac_stencil=None
+    previous_estimate=occ=vac=occ_stencil=vac_stencil=color=None
     initialize()
 
 
@@ -200,7 +201,7 @@ def align_with_previous(R_aligned, occ_new, vac_new):
     assert R_aligned.shape == (4,4)
 
     global previous_estimate
-    occ, vac, R_previous = previous_estimate
+    occ, vac, R_previous, _ = previous_estimate
 
     global R_correct
     R_correct,_ = nearest(R_previous, R_aligned)
@@ -217,16 +218,16 @@ def align_with_previous(R_aligned, occ_new, vac_new):
     return R_correct, occ_new, vac_new
 
 
-def stencil_carve(depth, rect, R_correct, occ, vac):
+def stencil_carve(depth, rect, R_correct, occ, vac, rgb=None):
     global previous_estimate
     if not previous_estimate is None:
-        occ_old, vac_old, _ = previous_estimate
+        occ_old, vac_old, _, _ = previous_estimate
         cands = occ_old | occ
     else:
         cands = occ
     global b_occ, b_vac, b_total
     b_occ, b_vac, b_total = stencil.stencil_carve(depth, R_correct,
-                                                  cands, rect)
+                                                  cands, rgb, rect)
 
     global occ_stencil, vac_stencil
     occ_stencil = (b_occ/(b_total+1.)>0.9) & (b_total>30)
@@ -234,13 +235,20 @@ def stencil_carve(depth, rect, R_correct, occ, vac):
     return occ_stencil, vac_stencil
 
 
-def merge_with_previous(occ_, vac_, occ_stencil, vac_stencil):
+def merge_with_previous(occ_, vac_, occ_stencil, vac_stencil, color_=None):
     # Only allow 'uncarving' of elements attached to known blocks
     import scipy.ndimage
-    global occ, vac
+    global occ, vac, color
     cmask = scipy.ndimage.binary_dilation(occ)
     #vac |= vac_stencil | vac_
     vac |= vac_
     vac[occ_stencil&cmask] = 0
+
+    if not color_ is None:
+        color[occ_stencil,:] = color_[occ_stencil,:]
     occ |= occ_
     occ[vac] = 0
+
+
+def merge_colors(colors):
+    pass

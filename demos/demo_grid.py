@@ -20,6 +20,7 @@ from blockplayer import lattice
 from blockplayer import grid
 from blockplayer import spacecarve
 from blockplayer import stencil
+from blockplayer import colors
 from blockplayer import occvac
 from blockplayer import blockdraw
 from blockplayer import dataset
@@ -36,13 +37,15 @@ def show_depth(name, depth):
 
 
 def once():
-    global depth
+    global depth, rgb
     if not FOR_REAL:
         dataset.advance()
         depth = dataset.depth
+        rgb = dataset.rgb
     else:
         opennpy.sync_update()
         depth,_ = opennpy.sync_get_depth()
+        rgb,_ = opennpy.sync_get_video()
 
     def from_rect(m,rect):
         (l,t),(r,b) = rect
@@ -91,16 +94,18 @@ def once():
     if lattice.is_valid_estimate():
         # Run stencil carve and merge
         occ_stencil, vac_stencil = grid.stencil_carve(depth, rect,
-                                                      R_correct, occ, vac)
-        grid.merge_with_previous(occ, vac, occ_stencil, vac_stencil)
+                                                      R_correct, occ, vac,
+                                                      rgb)
+
+        color = stencil.RGB if not rgb is None else None
+        grid.merge_with_previous(occ, vac, occ_stencil, vac_stencil, color)
 
     if 1:
         blockdraw.clear()
-        if 1:
-            blockdraw.show_grid('occ', grid.occ&~occvac.occ,
-                                color=np.array([1,0.6,0.6,1]))
-            blockdraw.show_grid('occ1', grid.occ&occvac.occ,
-                                color=np.array([1,0,0,1]))
+        if 'RGB' in stencil.__dict__:
+            blockdraw.show_grid('occ', grid.occ, color=stencil.RGB)
+        else:
+            blockdraw.show_grid('occ', grid.occ, color=np.array([1,0.6,0.6,1]))
 
         if 0 and lattice.is_valid_estimate():
             if 1:
@@ -130,7 +135,7 @@ def once():
         update_display()
         pylab.waitforbuttonpress(0.01)
         sys.stdout.flush()
-    grid.previous_estimate = grid.occ, grid.vac, R_correct
+    grid.previous_estimate = grid.occ, grid.vac, R_correct, grid.color
 
 
 def resume():

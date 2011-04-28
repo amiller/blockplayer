@@ -13,7 +13,7 @@ def clear():
 def show_grid(name, grid,
               color=np.array([1,0,0,1]), opacity=1.0,
               line_color=np.array([1,1,1,1])):
-    assert color is None or color.shape == (4,) or color.shape[2]==3
+    assert color is None or color.shape == (4,) or color.shape[3]==3
     d = {}
     if color.shape == (4,):
         d.update(grid_vertices(grid, None))
@@ -67,9 +67,10 @@ def grid_vertices(grid, color=None):
     coords = (q*0 + blocks).astype('u1').reshape(-1,3)
 
     if not color is None:
-        assert color.shape[2] == 3
+        assert color.shape[3] == 3
         color = color[grid,:].reshape(-1,1,3)
-        cc = (q*0+color).reshape(-1,3)
+        cc = (q.astype('u1')*0+color).reshape(-1,3)
+        assert cc.dtype == np.uint8
     else:
         cc = coords
 
