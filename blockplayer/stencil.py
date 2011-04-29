@@ -192,8 +192,17 @@ def stencil_carve(depth, modelmat, occ_grid, rgb=None, rect=((0,0),(640,480))):
         b_vac,_ = np.histogramdd(c, bins, weights=w&
                                  (depthB+10<depth).flatten())
 
-    cv.CvtColor(RGB.reshape(1,-1,3), HSV.reshape(1,-1,3), cv.CV_RGB2HSV);
-    HSV[:,:,:,1] = 255
-    HSV[:,:,:,2] = 255
-    cv.CvtColor(HSV.reshape(1,-1,3), RGB.reshape(1,-1,3), cv.CV_HSV2RGB);
+    # Color targets, defined as hues from 0 to 180
+    # red, yellow, green, blue, red
+    color_targets = np.array([0, 30, 60, 120, 180],'u1')
+
+    if 1:
+        cv.CvtColor(RGB.reshape(1,-1,3), HSV.reshape(1,-1,3), cv.CV_RGB2HSV);
+        HSV[:,:,:,1] = 255
+        HSV[:,:,:,2] = 255
+        Hdiff = np.abs(HSV[:,:,:,:1] - color_targets.reshape(1,1,1,-1))
+        HSV[:,:,:,0] = color_targets[np.argmin(Hdiff,axis=3)]
+        cv.CvtColor(HSV.reshape(1,-1,3), RGB.reshape(1,-1,3), cv.CV_HSV2RGB);
+    else:
+        RGB = (RGB.astype('i')*4).clip(0,255)
     return b_occ, b_vac, b_total

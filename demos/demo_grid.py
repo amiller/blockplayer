@@ -74,7 +74,8 @@ def once():
     occ, vac = occvac.carve_opencl()
 
     if grid.has_previous_estimate():
-        R_aligned, c = grid.nearest(grid.previous_estimate[2], R_aligned)
+        R_aligned, c = grid.nearest(grid.previous_estimate['R_correct'],
+                                    R_aligned)
         print c
         occ = occvac.occ = grid.apply_correction(occ, *c)
         vac = occvac.vac = grid.apply_correction(vac, *c)
@@ -103,7 +104,7 @@ def once():
     if 1:
         blockdraw.clear()
         if 'RGB' in stencil.__dict__:
-            blockdraw.show_grid('occ', grid.occ, color=stencil.RGB)
+            blockdraw.show_grid('occ', grid.occ, color=grid.color)
         else:
             blockdraw.show_grid('occ', grid.occ, color=np.array([1,0.6,0.6,1]))
 
@@ -135,7 +136,7 @@ def once():
         update_display()
         pylab.waitforbuttonpress(0.01)
         sys.stdout.flush()
-    grid.previous_estimate = grid.occ, grid.vac, R_correct, grid.color
+    grid.update_previous_estimate(R_correct)
 
 
 def resume():

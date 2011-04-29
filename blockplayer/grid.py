@@ -20,15 +20,16 @@ def initialize():
     b_width = [config.bounds[1][i]-config.bounds[0][i]
                for i in range(3)]
 
-    global occ, vac, color, previous_estimate
+    global occ, vac, color, color_count, previous_estimate
     occ = np.zeros(b_width)>0
     vac = np.zeros(b_width)>0
     color = np.zeros((b_width[0], b_width[1], b_width[2], 3),'u1')
+    color_count = np.zeros(b_width,'i')
     previous_estimate = None
 
 
 if not 'previous_estimate' in globals():
-    previous_estimate=occ=vac=occ_stencil=vac_stencil=color=None
+    previous_estimate=occ=vac=occ_stencil=vac_stencil=color=color_count=None
     initialize()
 
 
@@ -201,7 +202,9 @@ def align_with_previous(R_aligned, occ_new, vac_new):
     assert R_aligned.shape == (4,4)
 
     global previous_estimate
-    occ, vac, R_previous, _ = previous_estimate
+    occ = previous_estimate['occ']
+    vac = previous_estimate['vac']
+    R_previous = previous_estimate['R_correct']
 
     global R_correct
     R_correct,_ = nearest(R_previous, R_aligned)
@@ -221,7 +224,7 @@ def align_with_previous(R_aligned, occ_new, vac_new):
 def stencil_carve(depth, rect, R_correct, occ, vac, rgb=None):
     global previous_estimate
     if not previous_estimate is None:
-        occ_old, vac_old, _, _ = previous_estimate
+        occ_old = previous_estimate['occ']
         cands = occ_old | occ
     else:
         cands = occ
@@ -238,16 +241,28 @@ def stencil_carve(depth, rect, R_correct, occ, vac, rgb=None):
 def merge_with_previous(occ_, vac_, occ_stencil, vac_stencil, color_=None):
     # Only allow 'uncarving' of elements attached to known blocks
     import scipy.ndimage
-    global occ, vac, color
+    global occ, vac, color, color_count
     cmask = scipy.ndimage.binary_dilation(occ)
     #vac |= vac_stencil | vac_
     vac |= vac_
     vac[occ_stencil&cmask] = 0
 
     if not color_ is None:
-        color[occ_stencil,:] = color_[occ_stencil,:]
+        colormask = occ_stencil&(stencil.b_occ>color_count)
+        color[colormask,:] = color_[colormask,:]
+        color_count[colormask] = stencil.b_occ[colormask]
+        print np.sum(colormask)
     occ |= occ_
     occ[vac] = 0
+
+
+def update_previous_estimate(R_correct):
+    global previous_estimate
+    previous_estimate = dict(vac=vac,
+                             occ=occ,
+                             R_correct=R_correct,
+                             color=color,
+                             color_count=color_count)
 
 
 def merge_colors(colors):
