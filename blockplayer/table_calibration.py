@@ -30,11 +30,12 @@ def run_calib():
     close('all')
     """Run the table plane calibration
     """
-    global points
+    global points, depth
     print("Getting an image from the camera")
     opennpy.align_depth_to_rgb()
-    [opennpy.sync_update() for i in range(10)]
-    depth, _ = opennpy.sync_get_depth()
+    for i in range(10):
+        opennpy.sync_update()
+        depth, _ = opennpy.sync_get_depth()
 
     fig = figure(1)
     clf()
@@ -45,7 +46,8 @@ def run_calib():
         points.append((event.xdata, event.ydata))
         print('Picked point %d of 4' % (len(points)))
 
-    imshow(1./depth)
+    imshow(depth)
+    #imshow(1./depth)
     draw()
     fig.canvas.mpl_disconnect('button_press_event')
     fig.canvas.mpl_connect('button_press_event', pick)
@@ -182,7 +184,7 @@ def find_plane(depth, boundpts):
 
     background = np.array(depth)
     background[~mask] = 0
-    background = np.minimum(background,openglbgHi)
+    background = np.maximum(background,openglbgHi)
     #backgroundM = normals.project(background)
 
     openglbgLo = openglbgLo.astype(np.uint16)

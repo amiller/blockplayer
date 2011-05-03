@@ -20,7 +20,9 @@ def color_axis(X,Y,Z,w,d=0.3):
   X2,Y2,Z2 = X*X,Y*Y,Z*Z
   d = 1/d
   cc = Y2+Z2, Z2+X2, X2+Y2
-  cx = [w*np.maximum(1.0-(c*d)**2,0*c) for c in cc]
+  # I changed this, so it's possible the threshold should be adjusted
+  #cx = [w*np.maximum(1.0-(c*d)**2),0*c) for c in cc]
+  cx = [w*np.maximum(1.0-(c*(d**2)),0*c) for c in cc]
   return [c for c in cx]
 
 
