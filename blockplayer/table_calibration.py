@@ -46,8 +46,8 @@ def run_calib():
         points.append((event.xdata, event.ydata))
         print('Picked point %d of 4' % (len(points)))
 
-    imshow(depth)
-    #imshow(1./depth)
+    #imshow(depth)
+    imshow(1./depth)
     draw()
     fig.canvas.mpl_disconnect('button_press_event')
     fig.canvas.mpl_connect('button_press_event', pick)
