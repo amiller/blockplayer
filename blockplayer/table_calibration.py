@@ -182,7 +182,7 @@ def find_plane(depth, boundpts):
 
     background = np.array(depth)
     background[~mask] = 0
-    background = np.maximum(background,openglbgHi)
+    background = np.minimum(background,openglbgHi)
     #backgroundM = normals.project(background)
 
     openglbgLo = openglbgLo.astype(np.uint16)
