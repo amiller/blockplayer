@@ -33,8 +33,7 @@ def run_calib():
     global points
     print("Getting an image from the camera")
     opennpy.align_depth_to_rgb()
-    opennpy.sync_update()
-    opennpy.sync_update()
+    [opennpy.sync_update() for i in range(10)]
     depth, _ = opennpy.sync_get_depth()
 
     fig = figure(1)
@@ -46,7 +45,7 @@ def run_calib():
         points.append((event.xdata, event.ydata))
         print('Picked point %d of 4' % (len(points)))
 
-    imshow(depth)
+    imshow(1./depth)
     draw()
     fig.canvas.mpl_disconnect('button_press_event')
     fig.canvas.mpl_connect('button_press_event', pick)
@@ -85,7 +84,8 @@ def find_plane(depth, boundpts):
     abc = n[maskw].mean(0)
     abc /= np.sqrt(np.dot(abc,abc))
     a,b,c = abc
-    x,y,z = [_[maskw].mean() for _ in calibkinect.convertOpenNI2Real(depth)]
+    x,y,z = [_[maskw].mean() for _ in
+             calibkinect.convertOpenNI2Real_numpy(depth)]
     d = -(a*x+b*y+c*z)
     tableplane = np.array([a,b,c,d])
     #tablemean = np.array([x,y,z])
