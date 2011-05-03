@@ -82,15 +82,20 @@ def once():
 
     # Further carve out the voxels using spacecarve
     warn = np.seterr(invalid='ignore')
-    vac = vac | spacecarve.carve(depth, R_aligned)
+    try:
+        vac = vac | spacecarve.carve(depth, R_aligned)
+    except np.LinAlgError:
+        return
     np.seterr(divide=warn['invalid'])
 
     if 1 and grid.has_previous_estimate() and np.any(grid.occ):
         # Align the new voxels with the previous estimate
         R_correct, occ, vac = grid.align_with_previous(R_aligned, occ, vac)
-    else:
+    elif np.any(occ):
         # Otherwise try to center it
         R_correct, occ, vac = grid.center(R_aligned, occ, vac)
+    else:
+        return
 
     if lattice.is_valid_estimate():
         # Run stencil carve and merge
