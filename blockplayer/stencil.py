@@ -194,7 +194,7 @@ def stencil_carve(depth, modelmat, occ_grid, rgb=None, rect=((0,0),(640,480))):
 
     # Color targets, defined as hues from 0 to 180
     # red, yellow, green, blue, red
-    color_targets = np.array([0, 30, 60, 120, 180],'u1')
+    color_targets = np.array([0, 30, 60, 120, 180],'i')
 
     if 1:
         cv.CvtColor(RGB.reshape(1,-1,3), HSV.reshape(1,-1,3), cv.CV_RGB2HSV);

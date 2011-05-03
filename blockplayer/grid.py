@@ -254,6 +254,7 @@ def merge_with_previous(occ_, vac_, occ_stencil, vac_stencil, color_=None):
         print np.sum(colormask)
     occ |= occ_
     occ[vac] = 0
+    color_count[~occ] = 0
 
 
 def update_previous_estimate(R_correct):

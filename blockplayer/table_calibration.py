@@ -86,8 +86,7 @@ def find_plane(depth, boundpts):
     abc = n[maskw].mean(0)
     abc /= np.sqrt(np.dot(abc,abc))
     a,b,c = abc
-    x,y,z = [_[maskw].mean() for _ in
-             calibkinect.convertOpenNI2Real_numpy(depth)]
+    x,y,z = [_[maskw].mean() for _ in calibkinect.convertOpenNI2Real_numpy(depth)]
     d = -(a*x+b*y+c*z)
     tableplane = np.array([a,b,c,d])
     #tablemean = np.array([x,y,z])
