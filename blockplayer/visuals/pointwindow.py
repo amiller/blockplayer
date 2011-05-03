@@ -50,15 +50,31 @@ class PointWindow(CameraWindow):
             glBufferSubDataARB(GL_ARRAY_BUFFER_ARB, 0, XYZ.shape[0]*4*4, RGBA)
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0)
 
-    def on_draw(self):
-        super(PointWindow,self).set_camera()
+    def update_xyz(self,X,Y,Z,COLOR=None,AXES=None):
+        xyz = np.vstack((X.flatten(),Y.flatten(),Z.flatten())).transpose()
+        mask = Z.flatten()<10
+        xyz = xyz[mask,:]
 
-        glClearColor(*self.clearcolor)
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-        glEnable(GL_DEPTH_TEST)
+        global axes_rotation
+        axes_rotation = np.eye(4)
+        if not AXES is None:
+            # Rotate the axes
+            axes_rotation[:3,:3] = expmap.axis2rot(-AXES)
+            window.upvec = axes_rotation[:3,1]
 
-        self._wrap('pre_draw')
+        if not COLOR is None:
+            R,G,B,A = COLOR
+            color = np.vstack((R.flatten(),
+                               G.flatten(),
+                               B.flatten(),
+                               A.flatten())).transpose()
+            color = color[mask,:]
+        else:
+            assert not COLOR is None, "FIXME: empty color not implemented"
 
+        self.update_points(xyz, color)
+
+    def draw_points(self):
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, self.xyzbuf)
         glVertexPointerf(None)
         glEnableClientState(GL_VERTEX_ARRAY)
@@ -75,5 +91,17 @@ class PointWindow(CameraWindow):
         glDisableClientState(GL_VERTEX_ARRAY)
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0)
         glDisable(GL_BLEND)
+
+
+    def on_draw(self):
+        super(PointWindow,self).set_camera()
+
+        glClearColor(*self.clearcolor)
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        glEnable(GL_DEPTH_TEST)
+
+        self._wrap('pre_draw')
+        
+        self.draw_points()
 
         self._wrap('post_draw')
