@@ -233,7 +233,7 @@ def stencil_carve(depth, rect, R_correct, occ, vac, rgb=None):
                                                   cands, rgb, rect)
 
     global occ_stencil, vac_stencil
-    occ_stencil = (b_occ/(b_total+1.)>0.9) & (b_total>30)
+    occ_stencil = (b_occ/(b_total+1.)>0.9) & (b_total>40)
     vac_stencil = (b_vac/(b_total+1.)>0.9) & (b_total>60)
     return occ_stencil, vac_stencil
 
@@ -245,7 +245,8 @@ def merge_with_previous(occ_, vac_, occ_stencil, vac_stencil, color_=None):
     cmask = scipy.ndimage.binary_dilation(occ)
     #vac |= vac_stencil | vac_
     vac |= vac_
-    vac[occ_stencil&cmask] = 0
+    vac[occ_stencil] = 0
+    occ_ &= occ_stencil
 
     if not color_ is None:
         colormask = occ_stencil&(stencil.b_occ>color_count)

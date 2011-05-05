@@ -28,7 +28,7 @@ def preview():
 
 
 def go():
-    opennpy.align_depth_do_rgb()
+    opennpy.align_depth_to_rgb()
     while 1:
         preview()
         pylab.waitforbuttonpress(0.005)
