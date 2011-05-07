@@ -6,7 +6,6 @@ import config
 import os
 import dataset
 import stencil
-import colors
 
 
 from ctypes import POINTER as PTR, c_byte, c_size_t, c_float
