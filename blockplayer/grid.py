@@ -250,7 +250,6 @@ def stencil_carve(depth, rect, R_correct, occ, vac, rgb=None):
 
     global good_alignment
     good_alignment = float(b_occ.sum())/b_total.sum()
-    print good_alignment
 
     return occ_stencil, vac_stencil
 
@@ -260,9 +259,11 @@ def merge_with_previous(occ_, vac_, occ_stencil, vac_stencil, color_=None):
     import scipy.ndimage
     global occ, vac, color, color_count
     cmask = scipy.ndimage.binary_dilation(occ)
-    #vac |= vac_stencil | vac_
+
     vac |= vac_
     vac[occ_stencil] = 0
+    if occ.sum() > 0:
+        occ_ &= cmask
     occ_ &= occ_stencil
 
     if not color_ is None:

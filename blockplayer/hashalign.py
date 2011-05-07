@@ -111,6 +111,6 @@ def find_best_alignment(occA, vacA, occB, vacB,
             bestmatch[r] = match
             besterror[r] = err
 
-    print dotscores
-    bestind = np.argmin(np.array(besterror)+2*np.array(dotscores))
+    #print dotscores
+    bestind = np.argmin(np.array(besterror)+10*np.array(dotscores))
     return bestmatch[bestind], besterror[bestind]
