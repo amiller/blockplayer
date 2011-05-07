@@ -68,11 +68,17 @@ def run_grid():
     with open('makewww/blockviewiframetemplate.html','r') as f:
         tmp = template.Template(f.read())
 
-    datasets = glob.glob('data/sets/*')
+    #datasets = glob.glob('data/sets/*')
+    datasets = glob.glob('data/sets/study_*')
     for name in datasets:
     #for name in ('data/sets/cube',):
         dataset.load_dataset(name)
         name = os.path.split(name)[1]
+
+        import re
+        number = int(re.match('.*_z(\d)m_.*', name).groups()[0])
+        with open('data/experiments/gt/gt%d.txt' % number) as f:
+            config.GT = grid.gt2grid(f.read())
 
         with open(os.path.join('data/experiments/output/',name,
                                'output.pkl'),'r') as f:
@@ -93,11 +99,16 @@ def run_grid():
             gstr = json.dumps(g.tolist())
             return gstr
 
-        gt = config.GT
-        _,gt,_,_,_ = grid.xcorr_correction(out, gt)
-        red = gt & ~out
-        yellow = ~gt & out
-        blue = gt & out
+        if not config.GT is None:
+            gt = config.GT
+            _,gt,_,_,_ = grid.xcorr_correction(out, gt)
+            red = gt & ~out
+            yellow = ~gt & out
+            blue = gt & out
+        else:
+            red = out
+            yellow = 0*out
+            blue = 0*out
 
         with open(os.path.join(out_path, '%s_block.html' % name),'w') as f:
             f.write(tmp.render(template.Context(dict(red=gridstr(red),

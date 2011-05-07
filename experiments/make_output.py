@@ -16,6 +16,8 @@ from blockplayer import grid
 from blockplayer import spacecarve
 from blockplayer import stencil
 from blockplayer import occvac
+from blockplayer import classify
+from blockplayer import hashalign
 
 out_path = os.path.join('data/experiments','output')
 
@@ -31,11 +33,17 @@ R_correct = None
 
 def once():
     depth = dataset.depth
+    rgb = dataset.rgb
     (mask,rect) = preprocess.threshold_and_mask(depth,config.bg)
 
     global R_correct
+
     # Compute the surface normals
     normals.normals_opencl(depth, mask, rect)
+
+    # Classify with rfc
+    #classmask = classify.predict(depth)
+    #mask &= (classmask[0]==1)
 
     # Find the lattice orientation and then translation
     global R_oriented, R_aligned, R_correct
@@ -45,33 +53,49 @@ def once():
     # Use occvac to estimate the voxels from just the current frame
     occ, vac = occvac.carve_opencl()
 
-    if grid.has_previous_estimate():
-        R_aligned, c = grid.nearest(grid.previous_estimate[2], R_aligned)
-        print c
-        occ = occvac.occ = grid.apply_correction(occ, *c)
-        vac = occvac.vac = grid.apply_correction(vac, *c)
-
     # Further carve out the voxels using spacecarve
-    vac = vac | spacecarve.carve(depth, R_aligned)
+    warn = np.seterr(invalid='ignore')
+    try:
+        vac = vac | spacecarve.carve(depth, R_aligned)
+    except np.LinAlgError:
+        return
+    np.seterr(divide=warn['invalid'])
 
-    if 1 and grid.has_previous_estimate():
-        # Align the new voxels with the previous estimate
-        R_correct, occ, vac = grid.align_with_previous(R_aligned, occ, vac)
-    else:
+    if 1 and grid.has_previous_estimate() and np.any(grid.occ):
+        if 0:
+            R_aligned, c = grid.nearest(grid.previous_estimate['R_correct'],
+                                        R_aligned)
+            occ = occvac.occ = grid.apply_correction(occ, *c)
+            vac = occvac.vac = grid.apply_correction(vac, *c)
+
+            # Align the new voxels with the previous estimate
+            R_correct, occ, vac = grid.align_with_previous(R_aligned, occ, vac)
+        else:
+            c,err = hashalign.find_best_alignment(grid.occ, grid.vac, occ, vac,
+                                                  R_aligned,
+                                                  grid.previous_estimate['R_correct'])
+            R_correct = hashalign.correction2modelmat(R_aligned, *c)
+            grid.R_correct = R_correct
+            occ = occvac.occ = hashalign.apply_correction(occ, *c)
+            vac = occvac.vac = hashalign.apply_correction(vac, *c)
+    elif np.any(occ):
         # Otherwise try to center it
         R_correct, occ, vac = grid.center(R_aligned, occ, vac)
+    else:
+        return
 
     if lattice.is_valid_estimate():
         # Run stencil carve and merge
         occ_stencil, vac_stencil = grid.stencil_carve(depth, rect,
-                                                      R_correct, occ, vac)
-        grid.merge_with_previous(occ, vac, occ_stencil, vac_stencil)
-    grid.previous_estimate = grid.occ, grid.vac, R_correct, grid.color
+                                                      R_correct, occ, vac, rgb)
+        color = stencil.RGB if not rgb is None else None
+        grid.merge_with_previous(occ, vac, occ_stencil, vac_stencil, color)
+    grid.update_previous_estimate(R_correct)        
 
 
 def run_grid():
 
-    datasets = glob.glob('data/sets/*')
+    datasets = glob.glob('data/sets/study_*')
     try:
         shutil.rmtree(out_path)
     except:
@@ -90,6 +114,13 @@ def run_grid():
         global modelmat
         modelmat = None
         grid.initialize()
+
+        import re
+        number = int(re.match('.*_z(\d)m_.*', name).groups()[0])
+        with open('data/experiments/gt/gt%d.txt' % number) as f:
+            GT = grid.gt2grid(f.read())
+        grid.initialize_with_groundtruth(GT)
+        
 
         total = 0
         output = []
