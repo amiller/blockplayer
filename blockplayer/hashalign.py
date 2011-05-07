@@ -6,7 +6,6 @@ import config
 import os
 import dataset
 import stencil
-import colors
 import config
 
 
