@@ -11,7 +11,7 @@ from blockplayer import blockdraw
 class BlockWindow(PointWindow):
 
     def __init__(self, *args, **kwargs):
-        self.modelmat = None
+        self.modelmat = np.eye(4)
         super(BlockWindow,self).__init__(*args, **kwargs)
 
     def draw_board(self):
@@ -20,7 +20,7 @@ class BlockWindow(PointWindow):
         glEnable(GL_POLYGON_OFFSET_FILL)
 
         # Draw the gray table
-        if 1:
+        if 'bg' in config.__dict__:
             glBegin(GL_QUADS)
             glColor(0.6,0.7,0.7,1)
             for x,y,z in config.bg['boundptsM']:

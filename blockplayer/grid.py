@@ -20,16 +20,18 @@ def initialize():
     b_width = [config.bounds[1][i]-config.bounds[0][i]
                for i in range(3)]
 
-    global occ, vac, color, color_count, previous_estimate
+    global occ, vac, color, color_count, previous_estimate, good_alignment
     occ = np.zeros(b_width)>0
     vac = np.zeros(b_width)>0
     color = np.zeros((b_width[0], b_width[1], b_width[2], 3),'u1')
     color_count = np.zeros(b_width,'i')
+    good_alignment = False
     previous_estimate = None
 
 
 if not 'previous_estimate' in globals():
     previous_estimate=occ=vac=occ_stencil=vac_stencil=color=color_count=None
+    good_alignment=None
     initialize()
 
 
@@ -45,6 +47,13 @@ def grid2gt(occ):
               for i in range(m.shape[1])]
     import pprint
     return pprint.pformat(layers)
+
+
+def initialize_with_groundtruth(GT):
+    initialize()
+    global occ, vac
+    occ[:,:] = GT
+    vac[:,:] = ~GT
 
 
 def window_correction(occA, vacA, occB, vacB):
@@ -68,9 +77,9 @@ def window_correction(occA, vacA, occB, vacB):
             err is the value of the objective function minimized by (x,_,z)
     """
     occR = dict([(r, np.swapaxes(np.rot90(np.swapaxes(occB,1,2), r), 1,2))
-                 for r in (-1,0,1)])
+                 for r in (0,1,2,3)])
     vacR = dict([(r, np.swapaxes(np.rot90(np.swapaxes(vacB,1,2), r), 1,2))
-                 for r in (-1,0,1)])
+                 for r in (0,1,2,3)])
     #print [occ.shape for occ in occR.values()]
 
     def error(t):
@@ -165,6 +174,17 @@ def apply_correction(grid, bx,bz,rot):
         bx, 0), bz, 2)
 
 
+def center(R_aligned, occ_new, vac_new):
+    bx,_,bz = [config.GRIDRAD-int(np.round(_.mean()))
+               for _ in occ_new.nonzero()]
+    occ_new = apply_correction(occ_new, bx, bz, 0)
+    vac_new = apply_correction(vac_new, bx, bz, 0)
+    R_correct = R_aligned.copy()
+    R_correct[0,3] += bx*config.LW
+    R_correct[2,3] += bz*config.LW
+    return R_correct, occ_new, vac_new
+
+
 def nearest(R_previous, R_aligned):
     # Find the nearest rotation
     import expmap
@@ -186,17 +206,6 @@ def nearest(R_previous, R_aligned):
     return R_correct, (bx,bz,rot)
 
 
-def center(R_aligned, occ_new, vac_new):
-    bx,_,bz = [config.GRIDRAD-int(np.round(_.mean()))
-               for _ in occ_new.nonzero()]
-    occ_new = apply_correction(occ_new, bx, bz, 0)
-    vac_new = apply_correction(vac_new, bx, bz, 0)
-    R_correct = R_aligned.copy()
-    R_correct[0,3] += bx*config.LW
-    R_correct[2,3] += bz*config.LW
-    return R_correct, occ_new, vac_new
-
-
 def align_with_previous(R_aligned, occ_new, vac_new):
     assert R_aligned.dtype == np.float32
     assert R_aligned.shape == (4,4)
@@ -207,9 +216,12 @@ def align_with_previous(R_aligned, occ_new, vac_new):
     R_previous = previous_estimate['R_correct']
 
     global R_correct
-    R_correct,_ = nearest(R_previous, R_aligned)
+    R_correct, c = nearest(R_previous, R_aligned)
+    occ_new = apply_correction(occ_new, *c)
+    vac_new = apply_correction(vac_new, *c)
 
     (bx,_,bz,rot),err = window_correction(occ, vac, occ_new, vac_new)
+    #print 'err: ', err
 
     if (bx,bz) != (0,0):
         R_correct[0,3] += bx*config.LW
@@ -233,8 +245,13 @@ def stencil_carve(depth, rect, R_correct, occ, vac, rgb=None):
                                                   cands, rgb, rect)
 
     global occ_stencil, vac_stencil
-    occ_stencil = (b_occ/(b_total+1.)>0.9) & (b_total>40)
-    vac_stencil = (b_vac/(b_total+1.)>0.9) & (b_total>60)
+    occ_stencil = (b_occ/(b_total+1.)>0.9) & (b_total>30)
+    vac_stencil = (b_vac/(b_total+1.)>0.6) & (b_total>30)
+
+    global good_alignment
+    good_alignment = float(b_occ.sum())/b_total.sum()
+    print good_alignment
+
     return occ_stencil, vac_stencil
 
 
@@ -252,7 +269,7 @@ def merge_with_previous(occ_, vac_, occ_stencil, vac_stencil, color_=None):
         colormask = occ_stencil&(stencil.b_occ>color_count)
         color[colormask,:] = color_[colormask,:]
         color_count[colormask] = stencil.b_occ[colormask]
-        print np.sum(colormask)
+        #print np.sum(colormask)
     occ |= occ_
     occ[vac] = 0
     color_count[~occ] = 0

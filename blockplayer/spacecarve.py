@@ -63,7 +63,7 @@ def carve(depth, modelmat):
 
     length = np.sqrt((config.LW**2+
                       config.LH**2+
-                      config.LW**2))
+                      config.LW**2))/2
     np.seterr(divide=warn['divide'])
 
     global vac

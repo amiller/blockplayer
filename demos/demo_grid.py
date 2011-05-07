@@ -24,6 +24,8 @@ from blockplayer import colors
 from blockplayer import occvac
 from blockplayer import blockdraw
 from blockplayer import dataset
+from blockplayer import classify
+from blockplayer import hashalign
 
 import cv
 
@@ -65,6 +67,10 @@ def once():
     # Compute the surface normals
     normals.normals_opencl(depth, mask, rect)
 
+    # Classify with rfc
+    #classmask = classify.predict(depth)
+    #mask &= (classmask[0]==1)
+
     # Find the lattice orientation and then translation
     global R_oriented, R_aligned, R_correct
     R_oriented = lattice.orientation_opencl()
@@ -72,13 +78,6 @@ def once():
 
     # Use occvac to estimate the voxels from just the current frame
     occ, vac = occvac.carve_opencl()
-
-    if grid.has_previous_estimate():
-        R_aligned, c = grid.nearest(grid.previous_estimate['R_correct'],
-                                    R_aligned)
-        print c
-        occ = occvac.occ = grid.apply_correction(occ, *c)
-        vac = occvac.vac = grid.apply_correction(vac, *c)
 
     # Further carve out the voxels using spacecarve
     warn = np.seterr(invalid='ignore')
@@ -89,20 +88,34 @@ def once():
     np.seterr(divide=warn['invalid'])
 
     if 1 and grid.has_previous_estimate() and np.any(grid.occ):
-        # Align the new voxels with the previous estimate
-        R_correct, occ, vac = grid.align_with_previous(R_aligned, occ, vac)
+        if 0:
+            R_aligned, c = grid.nearest(grid.previous_estimate['R_correct'],
+                                        R_aligned)
+            occ = occvac.occ = grid.apply_correction(occ, *c)
+            vac = occvac.vac = grid.apply_correction(vac, *c)
+
+            # Align the new voxels with the previous estimate
+            R_correct, occ, vac = grid.align_with_previous(R_aligned, occ, vac)
+        else:
+            c,err = hashalign.find_best_alignment(grid.occ, grid.vac, occ, vac,
+                                                  R_aligned,
+                                                  grid.previous_estimate['R_correct'])
+            R_correct = hashalign.correction2modelmat(R_aligned, *c)
+            grid.R_correct = R_correct
+            occ = occvac.occ = hashalign.apply_correction(occ, *c)
+            vac = occvac.vac = hashalign.apply_correction(vac, *c)
+        #print R_aligned, R_correct
     elif np.any(occ):
-        # Otherwise try to center it
+        # If this is the first estimate (bootstrap) then try to center the grid
         R_correct, occ, vac = grid.center(R_aligned, occ, vac)
     else:
         return
 
+    occ_stencil, vac_stencil = grid.stencil_carve(depth, rect,
+                                                  R_correct, occ, vac,
+                                                  rgb)
     if lattice.is_valid_estimate():
         # Run stencil carve and merge
-        occ_stencil, vac_stencil = grid.stencil_carve(depth, rect,
-                                                      R_correct, occ, vac,
-                                                      rgb)
-
         color = stencil.RGB if not rgb is None else None
         grid.merge_with_previous(occ, vac, occ_stencil, vac_stencil, color)
 
@@ -162,6 +175,13 @@ def start(dset=None, frame_num=0):
             dataset.load_dataset(dset)
         while dataset.frame_num < frame_num:
             dataset.advance()
+
+        import re
+        number = int(re.match('.*_z(\d)m_.*', dset).groups()[0])
+        with open('data/experiments/gt/gt%d.txt' % number) as f:
+            GT = grid.gt2grid(f.read())
+        grid.initialize_with_groundtruth(GT)
+
     else:
         config.load('data/newest_calibration')
         opennpy.align_depth_to_rgb()
@@ -185,8 +205,8 @@ def update_display():
                                            dtype='i1').reshape(-1,4),1)-1
     R,G,B = [np.abs(_).astype('f') for _ in cx,cy,cz]
     window.update_xyz(Xo,Yo,Zo,COLOR=(R,G,B,R*0+1))
-    if 'R_correct' in grid.__dict__:
-        window.modelmat = grid.R_correct
+    if 'R_correct' in globals():
+        window.modelmat = R_correct
     window.Refresh()
 
 

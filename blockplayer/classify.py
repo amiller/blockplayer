@@ -1,5 +1,6 @@
 from kontort import DepthPredict
 import cPickle as pickle
+import numpy as np
 
 
 def load_classifier():
@@ -16,13 +17,13 @@ if not 'classifier' in globals():
     load_classifier();
 
 
-def predict(depth, mask):
+def predict(depth):
     """
     Apply the classifier to the depth image. The classifier returns:
         0 for block,
         1 for hand.
     Note that there's no need for the classifier to distinguish between
-    the background and the hand - we already have a mask we can
+    the background and the hands/blocks - we already have a mask we can
     use to ignore the background pixels.
     """
 
