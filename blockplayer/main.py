@@ -7,7 +7,6 @@ import lattice
 import grid
 import spacecarve
 import stencil
-import colors
 import occvac
 import dataset
 import hashalign
