@@ -71,9 +71,8 @@ popd
 # OpenNPy
 set +e; git clone https://github.com/bwhite/opennpy.git; set -e
 pushd opennpy
-python setup.py && sudo python setup.py install
+python setup.py build && sudo python setup.py install
 popd
-
 
 
 # Opencv
