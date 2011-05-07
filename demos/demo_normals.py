@@ -3,6 +3,7 @@ import pylab
 import numpy as np
 import timeit
 import opennpy
+from OpenGL.GL import *
 
 if not 'FOR_REAL' in globals():
     FOR_REAL = False
@@ -36,9 +37,10 @@ def show_normals(n, w, name='normals'):
 def show_normals_sphere(n, w):
     global axes_rotation
     axes_rotation = np.eye(4)
+    window.upvec = axes_rotation[:3,1]
 
     R,G,B = color_axis(n)
-    update(n[:,:,0],n[:,:,1],n[:,:,2], COLOR=(R+.5,G+.5,B+.5,w*(R+G+B)))
+    window.update_xyz(n[:,:,0], n[:,:,1], n[:,:,2], (R+.5,G+.5,B+.5,w*(R+G+B)))
     window.Refresh()
 
 
@@ -82,6 +84,7 @@ def once():
     global mask, rect, modelmat
     (mask,rect) = preprocess.threshold_and_mask(depth,config.bg)
 
+    global n,w
     if 0:
         n,w = normals.normals_numpy(depth)
         show_normals(n, w, 'normals_numpy')
@@ -95,6 +98,7 @@ def once():
         dt = timeit.timeit(lambda:
                            normals.normals_opencl(depth, mask, rect).wait(),
                            number=1)
+
         #print dt
         nw = normals.opencl.get_normals()
         n,w = nw[:,:,:3], nw[:,:,3]
@@ -104,10 +108,8 @@ def once():
     pylab.waitforbuttonpress(0.01)
 
 
-def update(X,Y,Z,COLOR=None,AXES=None):
-
-  @window.event
-  def on_draw_axes():
+@window.event
+def post_draw():
 
     # Draw some axes
     glLineWidth(3)
@@ -121,26 +123,3 @@ def update(X,Y,Z,COLOR=None,AXES=None):
     glColor3f(0,0,1); glVertex3f(0,0,0); glVertex3f(0,0,1)
     glEnd()
     glPopMatrix()
-
-  xyz = np.vstack((X.flatten(),Y.flatten(),Z.flatten())).transpose()
-  mask = Z.flatten()<10
-  xyz = xyz[mask,:]
-  window.XYZ = xyz
-
-  global axes_rotation
-  axes_rotation = np.eye(4)
-  if not AXES is None:
-    # Rotate the axes
-    axes_rotation[:3,:3] = expmap.axis2rot(-AXES)
-  window.upvec = axes_rotation[:3,1]
-
-  if not COLOR is None:
-    R,G,B,A = COLOR
-    color = np.vstack((R.flatten(),
-                       G.flatten(),
-                       B.flatten(),
-                       A.flatten())).transpose()
-    color = color[mask,:]
-
-  window.update_points(xyz)
-  window.update_points(xyz, color)

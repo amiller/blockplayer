@@ -44,7 +44,7 @@ def once():
     cv.ShowImage('mask',mask.astype('u1')*255)
 
     global label_image
-    label_image = classify.predict(depth, mask)
+    label_image = classify.predict(depth)
     cv.ShowImage('label_image', ((label_image[0]+1)*100*mask).astype('u1'))
     pylab.waitforbuttonpress(0.03)
 
