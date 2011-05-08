@@ -11,9 +11,12 @@ import occvac
 import dataset
 import hashalign
 
+R_display = None
 
 def initialize():
     grid.initialize()
+    global R_display
+    R_display = None
 
 
 def update_frame(depth, rgb=None):
@@ -64,9 +67,8 @@ def update_frame(depth, rgb=None):
                                         grid.previous_estimate['R_correct'])
             if c is None:
                 return
-            
+
             R_correct = hashalign.correction2modelmat(R_aligned, *c)
-            grid.R_correct = R_correct
             occ = occvac.occ = hashalign.apply_correction(occ, *c)
             vac = occvac.vac = hashalign.apply_correction(vac, *c)
 
@@ -75,6 +77,18 @@ def update_frame(depth, rgb=None):
         R_correct, occ, vac = grid.center(R_aligned, occ, vac)
     else:
         return
+
+    def matrix_slerp(matA, matB, alpha=0.6):
+        if matA is None:
+            return matB
+        import transformations
+        qA = transformations.quaternion_from_matrix(matA)
+        qB = transformations.quaternion_from_matrix(matB)
+        qC =transformations.quaternion_slerp(qA, qB, alpha)
+        return transformations.quaternion_matrix(qC)
+
+    global R_display
+    R_display = matrix_slerp(R_display, R_correct)
 
     occ_stencil, vac_stencil = grid.stencil_carve(depth, rect,
                                                   R_correct, occ, vac,

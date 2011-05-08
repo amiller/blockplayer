@@ -282,7 +282,3 @@ def update_previous_estimate(R_correct):
                              R_correct=R_correct,
                              color=color,
                              color_count=color_count)
-
-
-def merge_colors(colors):
-    pass
