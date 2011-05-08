@@ -8,6 +8,8 @@ ext_modules=[Extension("blockplayer.glxcontext",
                        libraries=['X11','GL']),
              Extension("blockplayer.calibkinect_cy",
                        ["blockplayer/calibkinect_cy.pyx"]),
+             Extension("blockplayer.speedup_cy",
+                       ["blockplayer/speedup_cy.pyx"]),
              Extension("blockplayer.speedup_ctypes",
                        ["blockplayer/speedup_ctypes.c"])]
 

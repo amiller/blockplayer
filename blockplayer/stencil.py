@@ -4,6 +4,7 @@ import numpy as np
 import config
 import blockdraw
 import cv
+import speedup_cy
 
 if not 'initialized' in globals():
     initialized = False
@@ -66,7 +67,6 @@ def render_blocks(occ_grid, modelmat, rect=((0,0),(640,480))):
     glLoadIdentity()
     KtableKK = np.dot(config.bg['Ktable'], config.bg['KK'])
     glMultMatrixf(np.linalg.inv(KtableKK).transpose())
-
     glMultMatrixf(np.linalg.inv(modelmat).transpose())
 
     glScale(config.LW, config.LH, config.LW)
@@ -117,9 +117,9 @@ def stencil_carve(depth, modelmat, occ_grid, rgb=None, rect=((0,0),(640,480))):
     assert coords.shape[2] == 4
     assert coords.shape[:2] == depthB.shape == depth.shape == (480,640)
 
-    b_total = np.zeros_like(occ_grid).astype('f')
-    b_occ = np.zeros_like(occ_grid).astype('f')
-    b_vac = np.zeros_like(occ_grid).astype('f')
+    b_total = np.zeros(occ_grid.shape, 'f')
+    b_occ = np.zeros(occ_grid.shape, 'f')
+    b_vac = np.zeros(occ_grid.shape, 'f')
 
     gridmin = np.array(config.bounds[0])
     gridmax = np.array(config.bounds[1])
@@ -142,9 +142,11 @@ def stencil_carve(depth, modelmat, occ_grid, rgb=None, rect=((0,0),(640,480))):
 
     import scipy.weave
     code = """
+    int GYGZ = gridlen[1]*gridlen[2];
     for (int i = T; i < B; i++) {
+      int p1 = i*640;
       for (int j = L; j < R; j++) {
-        int ind = i*640+j;
+        int ind = p1+j;
         int dB = depthB[ind];
         int d = depth[ind];
 
@@ -152,7 +154,7 @@ def stencil_carve(depth, modelmat, occ_grid, rgb=None, rect=((0,0),(640,480))):
            int x = coords[ind*4+0];
            int y = coords[ind*4+1];
            int z = coords[ind*4+2];
-           int coord = gridlen[1]*gridlen[2]*x + gridlen[2]*y + z;
+           int coord = GYGZ*x + gridlen[2]*y + z;
            b_total[coord]++;
            if (d>0) {
              if (dB+10 < d) b_vac[coord]++;
@@ -166,20 +168,27 @@ def stencil_carve(depth, modelmat, occ_grid, rgb=None, rect=((0,0),(640,480))):
         }
       }
     }
-    for (int i = 0; i < gridlen[0]*gridlen[1]*gridlen[2]; i++) {
+    int GYGZGX = gridlen[0]*gridlen[1]*gridlen[2];
+    for (int i = 0; i < GYGZGX; i++) {
         float recip = 1./b_occ[i];
         RGB[i*3+0] = (unsigned char) (RGBacc[i*3+0]*recip);
         RGB[i*3+1] = (unsigned char) (RGBacc[i*3+1]*recip);
         RGB[i*3+2] = (unsigned char) (RGBacc[i*3+2]*recip);
     }
     """
-    if 1:
+    if 0:
         scipy.weave.inline(code, ['b_total', 'b_occ', 'b_vac',
                                   'coords',
                                   'RGB','RGBacc','rgb',
                                   'depthB', 'depth',
                                   'gridlen',
                                   'T','B','L','R'])
+    elif 1:
+        speedup_cy.stencil_carve(depthB, depth, coords,
+                                 gridlen[0], gridlen[1], gridlen[2],
+                                 RGBacc, rgb, RGB,
+                                 b_total, b_occ, b_vac,
+                                 T, L, B, R)
     else:
         # This may be out of date - prefer the weave version
         bins = [np.arange(0,gridmax[i]-gridmin[i]+1)-0.5

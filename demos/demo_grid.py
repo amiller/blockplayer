@@ -55,8 +55,11 @@ def once():
         window.clearcolor=[0.9,1,0.9,0]
     else:
         window.clearcolor=[1,1,1,0]
-    update_display()
-    pylab.waitforbuttonpress(0.01)
+    #update_display()
+    if 'R_correct' in main.__dict__:
+        window.modelmat = main.R_correct
+    window.Refresh()
+    pylab.waitforbuttonpress(0.005)
     sys.stdout.flush()
 
 
@@ -107,8 +110,6 @@ def update_display():
                                            dtype='i1').reshape(-1,4),1)-1
     R,G,B = [np.abs(_).astype('f') for _ in cx,cy,cz]
     window.update_xyz(Xo,Yo,Zo,COLOR=(R,G,B,R*0+1))
-    if 'R_correct' in main.__dict__:
-        window.modelmat = main.R_correct
     window.Refresh()
 
 

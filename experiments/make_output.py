@@ -55,18 +55,21 @@ def run_grid():
 
         total = 0
         output = []
-        while 1:
-            try:
-                dataset.advance()
-            except (IOError, ValueError):
-                break
-            print name, dataset.frame_num
-            t1 = time.time()
-            once()
-            t2 = time.time()
-            total += t2-t1
+        try:
+            while 1:
+                try:
+                    dataset.advance()
+                except (IOError, ValueError):
+                    break
+                print name, dataset.frame_num
+                t1 = time.time()
+                once()
+                t2 = time.time()
+                total += t2-t1
 
-            output.append((main.R_correct.copy(), grid.occ.copy()))
+                output.append((main.R_correct.copy(), grid.occ.copy()))
+        except Exception as e:
+            print e
 
         d['frames'] = dataset.frame_num
         d['time'] = total

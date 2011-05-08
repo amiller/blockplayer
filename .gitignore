@@ -8,3 +8,4 @@ out.*
 build/
 datasets*
 pendingrewrite/
+*_cy.c

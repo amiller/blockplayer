@@ -46,6 +46,10 @@ def draw_block(blocks):
 
 
 def grid_vertices(grid, color=None):
+    return grid_vertices_numpy(grid, color)
+
+
+def grid_vertices_numpy(grid, color=None):
     """
     Given a boolean voxel grid, produce a list of vertices and indices
     for drawing quads or line strips in opengl

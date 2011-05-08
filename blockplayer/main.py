@@ -62,6 +62,9 @@ def update_frame(depth, rgb=None):
             c,err = hashalign.find_best_alignment(grid.occ, grid.vac, occ, vac,
                                                   R_aligned,
                                         grid.previous_estimate['R_correct'])
+            if c is None:
+                return
+            
             R_correct = hashalign.correction2modelmat(R_aligned, *c)
             grid.R_correct = R_correct
             occ = occvac.occ = hashalign.apply_correction(occ, *c)
