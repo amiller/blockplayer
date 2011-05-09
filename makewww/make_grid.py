@@ -68,8 +68,7 @@ def run_grid():
     with open('makewww/blockviewiframetemplate.html','r') as f:
         tmp = template.Template(f.read())
 
-    #datasets = glob.glob('data/sets/*')
-    datasets = glob.glob('data/sets/study_*')
+    datasets = glob.glob('data/sets/*')
     for name in datasets:
     #for name in ('data/sets/cube',):
         dataset.load_dataset(name)
@@ -80,9 +79,12 @@ def run_grid():
         with open('data/experiments/gt/gt%d.txt' % number) as f:
             config.GT = grid.gt2grid(f.read())
 
-        with open(os.path.join('data/experiments/output/',name,
-                               'output.pkl'),'r') as f:
-            output = pickle.load(f)
+        try:
+            with open(os.path.join('data/experiments/output/',name,
+                                   'output.pkl'),'r') as f:
+                output = pickle.load(f)
+        except IOError:
+            continue
         with open(os.path.join('data/experiments/output/',name,
                                'final_output.txt'),'r') as f:
             final_output = f.read()
