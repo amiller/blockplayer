@@ -24,6 +24,14 @@ from blockplayer import colormap
 import cv
 
 
+def show_rgb(rgb):
+    rgb = rgb[::2,::2,::-1]
+    im = cv.CreateImage((rgb.shape[1],rgb.shape[0]), 8, 3)
+    cv.SetData(im, ((rgb*3.).clip(0,255).astype('u1')).tostring())
+    cv.NamedWindow('rgb', 0)
+    cv.ShowImage('rgb', im)
+
+
 def show_depth(name, depth):
     im = cv.CreateImage((depth.shape[1],depth.shape[0]), 8, 3)
     cv.SetData(im, colormap.color_map(depth))
@@ -58,6 +66,8 @@ def once():
     #update_display()
     if 'R_correct' in main.__dict__:
         window.modelmat = main.R_display
+
+    show_rgb(rgb)
     window.Refresh()
     pylab.waitforbuttonpress(0.005)
     sys.stdout.flush()
@@ -85,7 +95,7 @@ def start(dset=None, frame_num=0):
         number = int(re.match('.*_z(\d)m_.*', dset).groups()[0])
         with open('data/experiments/gt/gt%d.txt' % number) as f:
             GT = grid.gt2grid(f.read())
-        #grid.initialize_with_groundtruth(GT)
+        grid.initialize_with_groundtruth(GT)
 
     else:
         config.load('data/newest_calibration')

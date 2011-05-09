@@ -13,6 +13,7 @@ import hashalign
 
 R_display = None
 
+
 def initialize():
     grid.initialize()
     global R_display
@@ -48,11 +49,11 @@ def update_frame(depth, rgb=None):
     warn = np.seterr(invalid='ignore')
     try:
         vac = vac | spacecarve.carve(depth, R_aligned)
-    except np.LinAlgError:
+    except np.linalg.LinAlgError:
         return
     np.seterr(divide=warn['invalid'])
 
-    if 1 and grid.has_previous_estimate() and np.any(grid.occ):
+    if grid.has_previous_estimate() and np.any(grid.occ):
         if 0:
             R_aligned, c = grid.nearest(grid.previous_estimate['R_correct'],
                                         R_aligned)
@@ -74,7 +75,12 @@ def update_frame(depth, rgb=None):
 
     elif np.any(occ):
         # If this is the first estimate (bootstrap) then try to center the grid
-        R_correct, occ, vac = grid.center(R_aligned, occ, vac)
+        if np.any(grid.occ):
+            c,err = hashalign.find_best_alignment(grid.occ, grid.vac, occ, vac,
+                                                  R_aligned)
+            R_correct = hashalign.correction2modelmat(R_aligned, *c)
+        else:
+            R_correct, occ, vac = grid.center(R_aligned, occ, vac)
     else:
         return
 
@@ -85,7 +91,10 @@ def update_frame(depth, rgb=None):
         qA = transformations.quaternion_from_matrix(matA)
         qB = transformations.quaternion_from_matrix(matB)
         qC =transformations.quaternion_slerp(qA, qB, alpha)
-        return transformations.quaternion_matrix(qC)
+        mat = matB.copy()
+        mat[:3,3] = (alpha)*matA[:3,3] + (1-alpha)*matB[:3,3]
+        mat[:3,:3] = transformations.quaternion_matrix(qC)[:3,:3]
+        return mat
 
     global R_display
     R_display = matrix_slerp(R_display, R_correct)
