@@ -263,8 +263,19 @@ kernel void gridinds_compute(
 
   float4 occ = floor(-gridmin + (xyzf-fix)/mod + f1);
   float4 vac = occ - cxyz_;
+  
   occ.w = cxyz_.x*4 + cxyz_.y*2 + cxyz_.z;
   vac.w = occ.w;
+
+  if (occ.x < 0 || occ.y < 0 || occ.z < 0) occ.w = 0;
+  if (occ.x >= (gridmax.x-gridmin.x) ||
+      occ.y >= (gridmax.y-gridmin.y) ||
+      occ.z >= (gridmax.z-gridmin.z)) occ.w = 0;
+  if (vac.x < 0 || vac.y < 0 || vac.z < 0) vac.w = 0;
+  if (vac.x >= (gridmax.x-gridmin.x-1) ||
+      vac.y >= (gridmax.y-gridmin.y-1) ||
+      vac.z >= (gridmax.z-gridmin.z-1)) vac.w = 0;
+  
   gridinds[2*index+0] = convert_char4(occ);
   gridinds[2*index+1] = convert_char4(vac);
 }
@@ -339,7 +350,8 @@ def set_rect(_rect):
   global length
   length = (B-T)*(R-L)
   assert length <= 480*640
-  
+
+
 def load_mask(mask):
   (L,T),(R,B) = rect
   assert mask.dtype == np.uint8
@@ -362,6 +374,7 @@ def load_filt(filt):
   assert filt.shape[0] == B-T 
   assert filt.shape[1] == R-L
   return cl.enqueue_write_buffer(queue, filt_buf, filt, is_blocking=False)
+
   
 def get_xyz():
   xyz = np.empty((length,4),'f')

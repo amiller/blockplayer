@@ -154,11 +154,11 @@ def find_best_alignment(occA, vacA, occB, vacB,
 
     A,B = occA, occB
     assert A.shape[0] == A.shape[2] == B.shape[0] == B.shape[2]
-    #featureA = find_features(A)
-    #featureB = find_features(B)
-    #featureA_cy = speedup_cy.find_features(A.astype('u1'))
-    #featureB_cy = speedup_cy.find_features(B.astype('u1'))
-    #assert np.all(np.array(featureA) == featureA_cy)
+    featureA = find_features(A)
+    featureB = find_features(B)
+    featureA_cy = speedup_cy.find_features(A.astype('u1'))
+    featureB_cy = speedup_cy.find_features(B.astype('u1'))
+    assert np.all(np.array(featureA) == featureA_cy)
     featureA = speedup_cy.find_features(A.astype('u1'))
     featureB = speedup_cy.find_features(B.astype('u1'))
 

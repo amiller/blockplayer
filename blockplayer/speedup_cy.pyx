@@ -220,20 +220,23 @@ def occvac(np.ndarray[np.int8_t, ndim=3, mode='c'] gridinds_,
     cdef np.uint8_t *vac = <np.uint8_t *> vac_.data
     
     for i in range(length):
-        mask = gridinds[8*i+0+3]
-        if mask == 0: continue
-        
-        x = gridinds[8*i+0+0]
-        y = gridinds[8*i+0+1]
-        z = gridinds[8*i+0+2]
-        if y >= 0 and occ[x*wywz + y*wz + z] < 35:
-            occ[x*wywz + y*wz + z] += 1
+        if gridinds[8*i+0+3] != 0:
+            x = gridinds[8*i+0+0]
+            y = gridinds[8*i+0+1]
+            z = gridinds[8*i+0+2]
+            if occ[x*wywz + y*wz + z] < 35:
+                #assert x >= 0 and z >= 0, 'vac >0'
+                #assert x < wx and z < wz and y < wy, 'vac < max'
+                occ[x*wywz + y*wz + z] += 1
 
-        x = gridinds[8*i+4+0]
-        y = gridinds[8*i+4+1]
-        z = gridinds[8*i+4+2]
-        if x >= 0 and vac[x*wywz + y*wz + z] < 35:
-            vac[x*wywz + y*wz + z] += 1
+        if gridinds[8*i+4+3] != 0:
+            x = gridinds[8*i+4+0]
+            y = gridinds[8*i+4+1]
+            z = gridinds[8*i+4+2]
+            #assert x >= 0 and z >= 0, 'vac >0'
+            #assert x < wx and z < wz and y < wy, 'vac < max'
+            if vac[x*wywz + y*wz + z] < 35:
+                vac[x*wywz + y*wz + z] += 1
 
     for i in range(wx*wy*wz):
         occ[i] = occ[i] > 30
