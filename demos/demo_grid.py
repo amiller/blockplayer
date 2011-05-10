@@ -59,10 +59,12 @@ def once():
 
     #blockdraw.show_grid('vac', grid.vac,
     #                    color=np.array([0.6,1,0.6,0]))
-    if lattice.is_valid_estimate():
+    if 0 and lattice.is_valid_estimate():
         window.clearcolor=[0.9,1,0.9,0]
     else:
-        window.clearcolor=[1,1,1,0]
+        window.clearcolor=[0,0,0,0]
+        #window.clearcolor=[1,1,1,0]
+        window.flag_drawgrid = True
 
     if 0:
         update_display()
@@ -132,7 +134,6 @@ def post_draw():
 
 if 'window' in globals():
     window.Refresh()
-
 
 if __name__ == '__main__':
     pass

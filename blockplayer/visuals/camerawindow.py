@@ -3,9 +3,9 @@ import numpy as np
 from OpenGL.GL import *
 from OpenGL.GLU import *
 
+
 # Window for drawing point clouds
 class CameraWindow(Window):
-      
   def __init__(self, *args, **kwargs):
     self.rotangles = [0,0]
     self.zoomdist = 1
@@ -34,14 +34,12 @@ class CameraWindow(Window):
           self.Refresh()    
         self._mpos = event.Position
 
-
     @self.eventx
     def EVT_MOUSEWHEEL(event):
       dy = np.sign(event.WheelRotation)*1.5
       #dy = event.WheelRotation # This is OK for apple, but not linux
       self.zoomdist *= np.power(0.95, -dy)
-      self.Refresh()
-    
+      self.Refresh()    
     
   def set_camera(self):
     width,height = self.GetClientSize()
@@ -49,9 +47,9 @@ class CameraWindow(Window):
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
     if self.mode == 'perspective':
-      gluPerspective(60, 4/3., 0.3, 200)
+      gluPerspective(60, float(width)/height, 0.3, 200)
     else:
-      glOrtho(-1.33,1.33,-1,1,0.3,200)
+      glOrtho(-float(width)/height,float(width)/height,-1,1,0.3,200)
 
     glMatrixMode(GL_MODELVIEW)
     # flush that stack in case it's broken from earlier
@@ -73,4 +71,3 @@ class CameraWindow(Window):
     self.set_camera()
     glClearColor(*self.clearcolor)
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
-

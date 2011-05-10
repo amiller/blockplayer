@@ -15,14 +15,15 @@ class PointWindow(CameraWindow):
         self.RGBA = None
         self.clearcolor = [1,1,1,0]
         super(PointWindow,self).__init__(*args, **kwargs)
-        
+
     def on_init(self):
         self.create_buffers()
 
     def create_buffers(self):
         self.rgbtex = glGenTextures(1)
         glBindTexture(TEXTURE_TARGET, self.rgbtex)
-        glTexImage2D(TEXTURE_TARGET,0,GL_RGB,640,480,0,GL_RGB,GL_UNSIGNED_BYTE,None)
+        glTexImage2D(TEXTURE_TARGET,0,GL_RGB,640,480,0,GL_RGB,
+                     GL_UNSIGNED_BYTE,None)
 
         self._depth = np.empty((480,640,3),np.int16)
         self._depth[:,:,1], self._depth[:,:,0] = np.mgrid[:480,:640]
@@ -92,7 +93,6 @@ class PointWindow(CameraWindow):
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0)
         glDisable(GL_BLEND)
 
-
     def on_draw(self):
         super(PointWindow,self).set_camera()
 
@@ -101,7 +101,7 @@ class PointWindow(CameraWindow):
         glEnable(GL_DEPTH_TEST)
 
         self._wrap('pre_draw')
-        
+
         self.draw_points()
 
         self._wrap('post_draw')
