@@ -72,9 +72,7 @@ def resume():
 
 
 def start(dset=None, frame_num=0):
-    global modelmat
-    modelmat = None
-    grid.initialize()
+    main.initialize()
     if not FOR_REAL:
         if dset is None:
             dataset.load_random_dataset()
@@ -84,6 +82,7 @@ def start(dset=None, frame_num=0):
             dataset.advance()
     else:
         config.load('data/newest_calibration')
+        opennpy.align_depth_to_rgb()
         dataset.setup_opencl()
 
 
