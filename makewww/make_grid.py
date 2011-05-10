@@ -68,7 +68,7 @@ def run_grid():
     with open('makewww/blockviewiframetemplate.html','r') as f:
         tmp = template.Template(f.read())
 
-    datasets = glob.glob('data/sets/*')
+    datasets = glob.glob('data/sets/study*')
     for name in datasets:
     #for name in ('data/sets/cube',):
         dataset.load_dataset(name)
