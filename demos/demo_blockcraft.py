@@ -106,6 +106,7 @@ def update_display():
 
     window.Refresh()
 
+
 @window.event
 def post_draw():
     pass
@@ -120,9 +121,11 @@ if 'socket' in globals():
 context = zmq.Context()
 socket = context.socket(zmq.PAIR)
 socket.connect('tcp://*:8134')
+
+
 def talk_to_minecraft():
     global context,socket
-    voxels = (grid.carve_grid<30)&(grid.vote_grid>30)
+    voxels = grid.occ
     socket.send(voxels)
 
 if __name__ == '__main__':
