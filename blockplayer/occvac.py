@@ -1,6 +1,7 @@
 import numpy as np
 import opencl
 import config
+import speedup_cy
 
 
 def carve_opencl(*args, **kwargs):
@@ -14,6 +15,7 @@ def carve(xfix=None, zfix=None, use_opencl=True):
     gridmax = np.zeros((4,),'f')
     gridmin[:3] = config.bounds[0]
     gridmax[:3] = config.bounds[1]
+    global occ, vac
 
     if xfix is None or zfix is None:
         import lattice
@@ -24,7 +26,30 @@ def carve(xfix=None, zfix=None, use_opencl=True):
                                 config.LW, config.LH,
                                 gridmin, gridmax)
         gridinds = opencl.get_gridinds()
-        inds = gridinds[gridinds[:,0,3]!=0,:,:3]
+
+        if 0:
+            inds = gridinds[gridinds[:,0,3]!=0,:,:3]
+            if len(inds) == 0:
+                return None
+            bins = [np.arange(0,gridmax[i]-gridmin[i]+1)
+                    for i in range(3)]
+            global occ, vac
+            occH,_ = np.histogramdd(inds[:,0,:], bins)
+            vacH,_ = np.histogramdd(inds[:,1,:], bins)
+
+            vac = vacH>30
+            occ = occH>30
+
+            return occ, vac
+        else:
+            shape = [gridmax[i]-gridmin[i] for i in range(3)]
+            occ = np.zeros(shape, 'u1')
+            vac = np.zeros(shape, 'u1')
+            speedup_cy.occvac(gridinds, occ, vac,
+                              gridmin.astype('i'),
+                              gridmax.astype('i'))
+            return occ.astype('bool'), vac.astype('bool')
+
     else:
         global X,Y,Z, XYZ
         X,Y,Z,face = np.rollaxis(opencl.get_modelxyz(),1)
@@ -51,16 +76,16 @@ def carve(xfix=None, zfix=None, use_opencl=True):
         grid = get_gridinds()
         inds = gridinds[np.any(cxyz!=0,1),:,:]
 
-    if len(inds) == 0:
-        return None
+        if len(inds) == 0:
+            return None
 
-    bins = [np.arange(0,gridmax[i]-gridmin[i]+1)
-            for i in range(3)]
-    global occ, vac
-    occH,_ = np.histogramdd(inds[:,0,:], bins)
-    vacH,_ = np.histogramdd(inds[:,1,:], bins)
+        bins = [np.arange(0,gridmax[i]-gridmin[i]+1)
+                for i in range(3)]
 
-    vac = vacH>30
-    occ = occH>30
+        occH,_ = np.histogramdd(inds[:,0,:], bins)
+        vacH,_ = np.histogramdd(inds[:,1,:], bins)
 
-    return occ, vac
+        vac = vacH>30
+        occ = occH>30
+
+        return occ, vac

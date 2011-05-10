@@ -6,6 +6,7 @@ speedup_ctypes = np.ctypeslib.load_library('speedup_ctypes.so',
                                            os.path.dirname(__file__))
 speedup_ctypes.inrange.argtypes = [PTR(c_ushort), PTR(c_byte), PTR(c_ushort),
                                    PTR(c_ushort), c_size_t]
+import speedup_cy
 
 
 def threshold_and_mask(depth,bg):
@@ -25,7 +26,15 @@ def threshold_and_mask(depth,bg):
                                480*640)
         return mm
 
-    mask = m2_()
+    def m3_():
+        mm = np.empty((480,640),'u1')
+        speedup_cy.inrange(depth,
+                           mm,
+                           bg['bgHi'],
+                           bg['bgLo'], 480*640)
+        return mm
+
+    mask = m3_()
     dec = 3
     dil = binary_erosion(mask[::dec,::dec],iterations=2)
     slices = scipy.ndimage.find_objects(dil)

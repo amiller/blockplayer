@@ -63,11 +63,14 @@ def once():
         window.clearcolor=[0.9,1,0.9,0]
     else:
         window.clearcolor=[1,1,1,0]
-    #update_display()
+
+    if 0:
+        update_display()
+
     if 'R_correct' in main.__dict__:
         window.modelmat = main.R_display
 
-    show_rgb(rgb)
+    #show_rgb(rgb)
     window.Refresh()
     pylab.waitforbuttonpress(0.005)
     sys.stdout.flush()

@@ -342,8 +342,8 @@ def set_rect(_rect):
   
 def load_mask(mask):
   (L,T),(R,B) = rect
-  assert mask.dtype == np.bool
-  assert mask.shape[0] == B-T 
+  assert mask.dtype == np.uint8
+  assert mask.shape[0] == B-T
   assert mask.shape[1] == R-L
   return cl.enqueue_write_buffer(queue, mask_buf, mask, is_blocking=False)
 

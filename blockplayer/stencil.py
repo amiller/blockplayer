@@ -84,18 +84,13 @@ def render_blocks(occ_grid, modelmat, rect=((0,0),(640,480))):
     glDisableClientState(GL_VERTEX_ARRAY)
     glFinish()
 
-    depth = np.zeros((480,640),dtype='f')
-
-    warn = np.seterr(divide='ignore')
-    depth[T:B,L:R] = 100/(1.0-glReadPixels(L, T, R-L, B-T, GL_DEPTH_COMPONENT,
-                                  GL_FLOAT).reshape(B-T, R-L))
-    np.seterr(divide=warn['divide'])
+    readpixels = glReadPixels(L, T, R-L, B-T, GL_DEPTH_COMPONENT, GL_FLOAT)
+    readpixelsA = glReadPixels(L, T, R-L, B-T, GL_RGBA, GL_UNSIGNED_BYTE,
+                              outputType='array')
+    depth = np.empty((480,640),dtype='f')
     coords = np.empty((480,640,4),dtype='u1')
-    coords[T:B,L:R,:] = glReadPixels(L, T, R-L, B-T, GL_RGBA,
-                                         GL_UNSIGNED_BYTE,
-                        outputType='array').reshape(B-T, R-L, -1)
+    speedup_cy.stencil_finish(depth, coords, readpixels, readpixelsA, T, L, B, R)
     glBindFramebuffer(GL_FRAMEBUFFER,0)
-
     return coords, depth
 
 
@@ -140,50 +135,7 @@ def stencil_carve(depth, modelmat, occ_grid, rgb=None, rect=((0,0),(640,480))):
                     b_total.shape[2], 3),'u1')
     assert rgb.dtype == np.uint8
 
-    import scipy.weave
-    code = """
-    int GYGZ = gridlen[1]*gridlen[2];
-    for (int i = T; i < B; i++) {
-      int p1 = i*640;
-      for (int j = L; j < R; j++) {
-        int ind = p1+j;
-        int dB = depthB[ind];
-        int d = depth[ind];
-
-        if (dB<1e6) {
-           int x = coords[ind*4+0];
-           int y = coords[ind*4+1];
-           int z = coords[ind*4+2];
-           int coord = GYGZ*x + gridlen[2]*y + z;
-           b_total[coord]++;
-           if (d>0) {
-             if (dB+10 < d) b_vac[coord]++;
-             if (dB-10 < d && d < dB+10) {
-               b_occ[coord]++;
-               RGBacc[coord*3+0] += rgb[ind*3+0];
-               RGBacc[coord*3+1] += rgb[ind*3+1];
-               RGBacc[coord*3+2] += rgb[ind*3+2];
-             }
-           }
-        }
-      }
-    }
-    int GYGZGX = gridlen[0]*gridlen[1]*gridlen[2];
-    for (int i = 0; i < GYGZGX; i++) {
-        float recip = 1./b_occ[i];
-        RGB[i*3+0] = (unsigned char) (RGBacc[i*3+0]*recip);
-        RGB[i*3+1] = (unsigned char) (RGBacc[i*3+1]*recip);
-        RGB[i*3+2] = (unsigned char) (RGBacc[i*3+2]*recip);
-    }
-    """
-    if 0:
-        scipy.weave.inline(code, ['b_total', 'b_occ', 'b_vac',
-                                  'coords',
-                                  'RGB','RGBacc','rgb',
-                                  'depthB', 'depth',
-                                  'gridlen',
-                                  'T','B','L','R'])
-    elif 1:
+    if 1:
         speedup_cy.stencil_carve(depthB, depth, coords,
                                  gridlen[0], gridlen[1], gridlen[2],
                                  RGBacc, rgb, RGB,
@@ -207,10 +159,10 @@ def stencil_carve(depth, modelmat, occ_grid, rgb=None, rect=((0,0),(640,480))):
 
     if 1:
         cv.CvtColor(RGB.reshape(1,-1,3), HSV.reshape(1,-1,3), cv.CV_RGB2HSV);
-        HSV[:,:,:,1] = 255
-        HSV[:,:,:,2] = 255
-        Hdiff = np.abs(HSV[:,:,:,:1] - color_targets.reshape(1,1,1,-1))
-        HSV[:,:,:,0] = color_targets[np.argmin(Hdiff,axis=3)]
+        #HSV[:,:,:,1:] = 255
+        #Hdiff = np.abs(HSV[:,:,:,:1] - color_targets.reshape(1,1,1,-1))
+        #HSV[:,:,:,0] = color_targets[np.argmin(Hdiff,axis=3)]
+        speedup_cy.fix_colors(HSV, color_targets)
         cv.CvtColor(HSV.reshape(1,-1,3), RGB.reshape(1,-1,3), cv.CV_HSV2RGB);
     else:
         RGB = (RGB.astype('i')*4).clip(0,255)
