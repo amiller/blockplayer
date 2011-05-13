@@ -37,7 +37,7 @@ if not 'previous_estimate' in globals():
 def gt2grid(gtstr):
     g = np.array(map(lambda _: map(lambda __: tuple(__), _), eval(gtstr)))
     g = np.rollaxis(g,1)
-    return g=='*'
+    return np.ascontiguousarray(g=='*')
 
 
 def grid2gt(occ):

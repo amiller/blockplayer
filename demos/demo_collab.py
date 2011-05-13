@@ -21,6 +21,7 @@ from blockplayer import blockdraw
 from blockplayer import dataset
 from blockplayer import main
 from blockplayer import colormap
+from blockplayer import hashalign
 import cv
 
 
@@ -51,23 +52,36 @@ def once():
 
     main.update_frame(depth, rgb)
 
-    blockdraw.clear()
-    if 'RGB' in stencil.__dict__:
-        blockdraw.show_grid('occ', grid.occ, color=grid.color)
+        blockdraw.clear()
+    try:
+        c,_ = hashalign.find_best_alignment(grid.occ,0*grid.occ,
+                                        target_model,~target_model)
+    except ValueError:
+        pass
     else:
-        blockdraw.show_grid('occ', grid.occ, color=np.array([1,0.6,0.6,1]))
+        tm = hashalign.apply_correction(target_model, *c)
+        tm = np.ascontiguousarray(tm)
 
-    #blockdraw.show_grid('vac', grid.vac,
-    #                    color=np.array([0.6,1,0.6,0]))
-    if 0 and lattice.is_valid_estimate():
-        window.clearcolor=[0.9,1,0.9,0]
-    else:
-        window.clearcolor=[0,0,0,0]
-        #window.clearcolor=[1,1,1,0]
-        window.flag_drawgrid = False
+        not_filled = tm & ~grid.occ
+        correct = tm & grid.occ
+        incorrect = ~tm & grid.occ
 
-    if 0:
-        update_display()
+        try:
+            next_layer = np.min(np.nonzero(not_filled)[1])
+        except ValueError:
+            blockdraw.show_grid('0', grid.occ, color=np.array([0.2,1,0.2,1]))
+        else:
+            blockdraw.show_grid('1', incorrect,
+                                color=np.array([1,1,0.1,1]))
+            nf = not_filled*0
+            nf[:,next_layer,:] = 1
+            nf = nf & not_filled
+            blockdraw.show_grid('2', nf,
+                                color=np.array([1,0.2,1.0,1]))
+            blockdraw.show_grid('3', correct, color=np.array([0.1,0.3,0.1,1]))
+
+    window.clearcolor=[0,0,0,0]
+    window.flag_drawgrid = False
 
     if 'R_correct' in main.__dict__:
         window.modelmat = main.R_display
@@ -88,6 +102,12 @@ def resume():
 def start(dset=None, frame_num=0):
     main.initialize()
 
+    #with open('data/experiments/collab/2011.txt') as f:
+    global target_model
+    with open('data/experiments/collab/block.txt') as f:
+        target_model = grid.gt2grid(f.read())
+    #grid.initialize_with_groundtruth(GT)
+
     if not FOR_REAL:
         if dset is None:
             dataset.load_random_dataset()
@@ -95,13 +115,6 @@ def start(dset=None, frame_num=0):
             dataset.load_dataset(dset)
         while dataset.frame_num < frame_num:
             dataset.advance()
-
-        import re
-        number = int(re.match('.*_z(\d)m_.*', dset).groups()[0])
-        with open('data/experiments/gt/gt%d.txt' % number) as f:
-            GT = grid.gt2grid(f.read())
-        grid.initialize_with_groundtruth(GT)
-
     else:
         config.load('data/newest_calibration')
         opennpy.align_depth_to_rgb()
@@ -111,21 +124,9 @@ def start(dset=None, frame_num=0):
 def go(dset=None, frame_num=0, forreal=False):
     global FOR_REAL
     FOR_REAL = forreal
+    blockdraw.clear()
     start(dset, frame_num)
     resume()
-
-
-def update_display():
-    global face, Xo, Yo, Zo
-
-    Xo,Yo,Zo,_ = np.rollaxis(opencl.get_xyz(),1)
-
-    global cx,cy,cz
-    cx,cy,cz,_ = np.rollaxis(np.frombuffer(np.array(face).data,
-                                           dtype='i1').reshape(-1,4),1)-1
-    R,G,B = [np.abs(_).astype('f') for _ in cx,cy,cz]
-
-    window.Refresh()
 
 
 @window.event

@@ -113,6 +113,14 @@ def correction2modelmat(R_aligned, x, y, z, r):
 
 def find_best_alignment(occA, vacA, occB, vacB,
                         R_aligned=None, prev_R_Correct=None):
+    """
+    R_aligned are used to weight the objective function with a previous,
+    specifically to avoid 180 degree and 90 degree ambiguity with symmetric
+    structures.
+
+    Returns:
+       correction (x,y,z,r): use this with correc2modelmat or apply
+    """
 
     def error(occA, vacA, occB, vacB):
         return np.sum(np.minimum(vacB,occA) + np.minimum(occB,vacA) -
@@ -141,10 +149,10 @@ def find_best_alignment(occA, vacA, occB, vacB,
         total = np.array([0],'f')
         #print lower, upper
 
-        assert occA.flags['C_CONTIGUOUS']
-        assert vacA.flags['C_CONTIGUOUS']
-        assert occB.flags['C_CONTIGUOUS']
-        assert vacB.flags['C_CONTIGUOUS']
+        assert occA.flags['C_CONTIGUOUS'],'occA flags'
+        assert vacA.flags['C_CONTIGUOUS'],'vacA flags'
+        assert occB.flags['C_CONTIGUOUS'],'occB flags'
+        assert vacB.flags['C_CONTIGUOUS'],'vacB flags'
 
         import scipy.weave
         scipy.weave.inline(code, ['occA', 'vacA', 'occB', 'vacB',
@@ -154,13 +162,16 @@ def find_best_alignment(occA, vacA, occB, vacB,
 
     A,B = occA, occB
     assert A.shape[0] == A.shape[2] == B.shape[0] == B.shape[2]
-    featureA = find_features(A)
-    featureB = find_features(B)
-    featureA_cy = speedup_cy.find_features(A.astype('u1'))
-    featureB_cy = speedup_cy.find_features(B.astype('u1'))
-    assert np.all(np.array(featureA) == featureA_cy)
+    #featureA = find_features(A)
+    #featureB = find_features(B)
+    #featureA_cy = speedup_cy.find_features(A.astype('u1'))
+    #featureB_cy = speedup_cy.find_features(B.astype('u1'))
+    #assert np.all(np.array(featureA) == featureA_cy)
     featureA = speedup_cy.find_features(A.astype('u1'))
     featureB = speedup_cy.find_features(B.astype('u1'))
+
+    if not len(featureA) or not len(featureB):
+        raise ValueError('Empty feature')
 
     matches = speedup_cy.match_features(featureA, featureB, A.shape[0])
     #matches_ = speedup_cy.match_features(featureA, featureB, A.shape[0])
@@ -213,4 +224,6 @@ def find_best_alignment(occA, vacA, occB, vacB,
 
     # Use the previouse_estimate score with a weight to select the best
     bestind = np.argmin(np.array(besterror)+10*np.array(dotscores))
+    if bestmatch[bestind] is None:
+        raise ValueError('No Match')
     return bestmatch[bestind], besterror[bestind]

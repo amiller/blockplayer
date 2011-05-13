@@ -63,10 +63,12 @@ def update_frame(depth, rgb=None):
             # Align the new voxels with the previous estimate
             R_correct, occ, vac = grid.align_with_previous(R_aligned, occ, vac)
         else:
-            c,err = hashalign.find_best_alignment(grid.occ, grid.vac, occ, vac,
-                                                  R_aligned,
-                                        grid.previous_estimate['R_correct'])
-            if c is None:
+            try:
+                c,err = hashalign.find_best_alignment(grid.occ, grid.vac,
+                                                      occ, vac,
+                                                      R_aligned,
+                                           grid.previous_estimate['R_correct'])
+            except ValueError:
                 return
 
             R_correct = hashalign.correction2modelmat(R_aligned, *c)
@@ -76,9 +78,12 @@ def update_frame(depth, rgb=None):
     elif np.any(occ):
         # If this is the first estimate (bootstrap) then try to center the grid
         if np.any(grid.occ):
-            c,err = hashalign.find_best_alignment(grid.occ, grid.vac, occ, vac,
-                                                  R_aligned)
-            R_correct = hashalign.correction2modelmat(R_aligned, *c)
+            try:
+                c,err = hashalign.find_best_alignment(grid.occ, grid.vac,
+                                                      occ, vac, R_aligned)
+                R_correct = hashalign.correction2modelmat(R_aligned, *c)
+            except ValueError:
+                return None
         else:
             R_correct, occ, vac = grid.center(R_aligned, occ, vac)
     else:
