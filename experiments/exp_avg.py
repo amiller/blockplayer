@@ -56,18 +56,19 @@ def run_error():
         pickle.dump(d, f)
 
 
-
-
-def bar_chart(B, xitems, gitems):
+def bar_chart(B, types, xitems=[]):
     """
     B should be (len(gitems))x(len(xitems)) array
     """
-    width = 0.35
-
-
+    width = 1.0/(len(types)+0.5)
+    colors = ['b','y','g','r']
+    d = []
     for i in range(len(B)):
         xind = np.arange(len(B[i]))
-        pylab.bar(xind+width, B[i])
+        d.append(pylab.bar(xind+i*width, B[i], width,
+                           color=colors[i]))
+    pylab.xticks(xind+0.5, xitems)
+    return d
 
 
 def chart_error():
@@ -80,26 +81,19 @@ def chart_error():
 
     rel = [[np.mean([_['rel']
                      for _ in d.values() if _['type']==t and _['num']==n])
-            for t in types]
-           for n in nums]
+            for n in nums]
+           for t in types]
+    rel = np.array(rel)
 
-    width = 0.35
+    inds = np.argsort(rel.mean(0))
+    rel = np.array(rel[:,inds[::-1]])
 
-    pylab.figure(1)
-    pylab.clf()
-
-    
-    for i in range(len(types)):
-        pylab.bar(i*width, rel ,
-        
-    
-
-    p = {}
-    for n in nums:
-         p[n-1] = pylab.bar(range(3), rel[n-1])
-
-    pylab.xlabel('shape')
-    pylab.ylabel('relative error')
+    pylab.close(pylab.figure(1))
+    pylab.figure(1, figsize=(5,2))
+    p = bar_chart(rel, types)
+    pylab.legend([_[0] for _ in p], types)
+    pylab.ylabel('Relative Error')
+    pylab.yticks(np.arange(0,1,0.2))
     pylab.draw()
     pylab.savefig('www/experiment.png')
 
