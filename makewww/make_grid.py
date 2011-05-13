@@ -39,6 +39,7 @@ def write_grid(ds):
     <div style='float:left'>
     <h4>{{ run.name }}
       <a href="{{ run.name }}_block.html">[fullscreen]</a>
+      <a href="/videos/{{ run.name }}.webm">[video]</a>
     </h4>
     <div>
        {{ run.frames }} frames in {{ run.time }} seconds ({{ run.fps }} fps)
