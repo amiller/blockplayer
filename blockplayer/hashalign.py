@@ -7,6 +7,7 @@ import os
 import dataset
 import stencil
 import config
+import speedup_cy
 
 
 def features_weave(Ar):
@@ -87,16 +88,16 @@ def apply_correction(grid, bx, by, bz,rot):
 
 
 def match_features(A, B, sq):
-    matches = []
     ymax = max([y for _,y,_,_ in A])
-    for y in range(ymax):
-        for a in [a for a in A if a[1]==y]:
-            for b in [b for b in B if b[1] == y]:
-                matches += [tuple(diff_coord(a,b, sq))]
+    yA = [[_ for _ in A if _[1] == y] for y in range(ymax)]
+    yB = [[_ for _ in B if _[1] == y] for y in range(ymax)]
     d = {}
-    for m in matches:
-        d.setdefault(m,0)
-        d[m] += 1
+    for y in range(ymax):
+        for a in yA[y]:
+            for b in yB[y]:
+                m = diff_coord(a,b, sq)
+                d.setdefault(m,0)
+                d[m] += 1
     return d
 
 
@@ -112,6 +113,14 @@ def correction2modelmat(R_aligned, x, y, z, r):
 
 def find_best_alignment(occA, vacA, occB, vacB,
                         R_aligned=None, prev_R_Correct=None):
+    """
+    R_aligned are used to weight the objective function with a previous,
+    specifically to avoid 180 degree and 90 degree ambiguity with symmetric
+    structures.
+
+    Returns:
+       correction (x,y,z,r): use this with correc2modelmat or apply
+    """
 
     def error(occA, vacA, occB, vacB):
         return np.sum(np.minimum(vacB,occA) + np.minimum(occB,vacA) -
@@ -140,10 +149,10 @@ def find_best_alignment(occA, vacA, occB, vacB,
         total = np.array([0],'f')
         #print lower, upper
 
-        assert occA.flags['C_CONTIGUOUS']
-        assert vacA.flags['C_CONTIGUOUS']
-        assert occB.flags['C_CONTIGUOUS']
-        assert vacB.flags['C_CONTIGUOUS']
+        assert occA.flags['C_CONTIGUOUS'],'occA flags'
+        assert vacA.flags['C_CONTIGUOUS'],'vacA flags'
+        assert occB.flags['C_CONTIGUOUS'],'occB flags'
+        assert vacB.flags['C_CONTIGUOUS'],'vacB flags'
 
         import scipy.weave
         scipy.weave.inline(code, ['occA', 'vacA', 'occB', 'vacB',
@@ -153,9 +162,19 @@ def find_best_alignment(occA, vacA, occB, vacB,
 
     A,B = occA, occB
     assert A.shape[0] == A.shape[2] == B.shape[0] == B.shape[2]
-    featureA = find_features(A)
-    featureB = find_features(B)
-    matches = match_features(featureA, featureB, A.shape[0])
+    #featureA = find_features(A)
+    #featureB = find_features(B)
+    #featureA_cy = speedup_cy.find_features(A.astype('u1'))
+    #featureB_cy = speedup_cy.find_features(B.astype('u1'))
+    #assert np.all(np.array(featureA) == featureA_cy)
+    featureA = speedup_cy.find_features(A.astype('u1'))
+    featureB = speedup_cy.find_features(B.astype('u1'))
+
+    if not len(featureA) or not len(featureB):
+        raise ValueError('Empty feature')
+
+    matches = speedup_cy.match_features(featureA, featureB, A.shape[0])
+    #matches_ = speedup_cy.match_features(featureA, featureB, A.shape[0])
 
     # Sort the matches by number of corroborating features
     matches = sorted(matches, key=lambda m: matches[m], reverse=True)
@@ -188,7 +207,13 @@ def find_best_alignment(occA, vacA, occB, vacB,
             #err_np = error(occA, vacA, oB, vB)
 
             bx,_,bz,_ = match
-            err = error_weave(occA, vacA, oBr, vBr, bx, bz, term=besterror[r])
+            #err = error_weave(occA, vacA, oBr, vBr, bx, bz, term=besterror[r])
+            err = speedup_cy.grid_error(occA.astype('u1'),
+                                        vacA.astype('u1'),
+                                        oBr.astype('u1'),
+                                        vBr.astype('u1'), bx, bz,
+                                        term=besterror[r])
+            #assert err_ == err
             #print [bx, bz, r], err, err_np
             #err = err_np
             #assert err == err_weave
@@ -199,4 +224,6 @@ def find_best_alignment(occA, vacA, occB, vacB,
 
     # Use the previouse_estimate score with a weight to select the best
     bestind = np.argmin(np.array(besterror)+10*np.array(dotscores))
+    if bestmatch[bestind] is None:
+        raise ValueError('No Match')
     return bestmatch[bestind], besterror[bestind]

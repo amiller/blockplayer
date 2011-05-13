@@ -61,7 +61,8 @@ def run_grid():
                     dataset.advance()
                 except (IOError, ValueError):
                     break
-                print name, dataset.frame_num
+                if dataset.frame_num % 30 == 0:
+                    print name, dataset.frame_num
                 t1 = time.time()
                 once()
                 t2 = time.time()

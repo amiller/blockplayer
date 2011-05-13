@@ -69,14 +69,18 @@ def run_grid():
         tmp = template.Template(f.read())
 
     datasets = glob.glob('data/sets/study*')
+<<<<<<< HEAD
     print datasets
     
+=======
+>>>>>>> faa4ffb10b4b99637749ead66f3dd2da7c2f2a1f
     for name in datasets:
         dataset.load_dataset(name)
         name = os.path.split(name)[1]
 
         import re
         number = int(re.match('.*_z(\d)m_.*', name).groups()[0])
+<<<<<<< HEAD
         custom = os.path.join('data/sets/', name, 'gt.txt')
         if os.path.exists(custom):
             f = open(custom, 'r')
@@ -88,11 +92,21 @@ def run_grid():
 
         try:
             with open(os.path.join('data/experiments/output/', name,
+=======
+        with open('data/experiments/gt/gt%d.txt' % number) as f:
+            config.GT = grid.gt2grid(f.read())
+
+        try:
+            with open(os.path.join('data/experiments/output/',name,
+>>>>>>> faa4ffb10b4b99637749ead66f3dd2da7c2f2a1f
                                    'output.pkl'),'r') as f:
                 output = pickle.load(f)
         except IOError:
             continue
+<<<<<<< HEAD
         
+=======
+>>>>>>> faa4ffb10b4b99637749ead66f3dd2da7c2f2a1f
         with open(os.path.join('data/experiments/output/',name,
                                'final_output.txt'),'r') as f:
             final_output = f.read()

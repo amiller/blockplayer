@@ -1,5 +1,6 @@
 import numpy as np
 import config
+import speedup_cy
 
 
 def depth_inds(modelmat, X, Y, Z):
@@ -18,6 +19,32 @@ def depth_inds(modelmat, X, Y, Z):
 
 
 def carve(depth, modelmat):
+
+    if 1:
+        gridmin, gridmax = config.bounds
+        gridmin = np.array(gridmin).astype('i')
+        gridmax = np.array(gridmax).astype('i')
+        length = np.sqrt((config.LW**2+
+                          config.LH**2+
+                          config.LW**2))/2
+        vac = np.zeros((gridmax[0]-gridmin[0],
+                        gridmax[1]-gridmin[1],
+                        gridmax[2]-gridmin[2]), 'u1')
+        mat = config.bg['KK']
+        modelmat = np.linalg.inv(np.dot(np.dot(modelmat,
+                                               config.bg['Ktable']),
+                                        config.bg['KK']))
+        modelmat = np.ascontiguousarray(modelmat)
+        speedup_cy.spacecarve(depth, vac, modelmat, mat,
+                              gridmin, gridmax,
+                              config.LW, config.LH, length)
+    if 0:
+        vac_numpy = carve_numpy(depth, modelmat)
+        assert np.all(vac == vac_numpy)
+    return vac
+
+
+def carve_numpy(depth, modelmat):
     """
     Sample the depth image at the center point of each voxel. Mark as 'vacant
     all the voxels that we can see right through.

@@ -9,9 +9,7 @@ from blockplayer import config
 from blockplayer import preprocess
 from blockplayer import normals
 from blockplayer import opencl
-from blockplayer import flatrot
 from blockplayer import lattice
-from blockplayer import classify
 
 
 from blockplayer.visuals.pointwindow import PointWindow
@@ -26,7 +24,7 @@ def show_flatrot():
 
 def show_normals_sphere(n, w):
     R,G,B = color_axis(n)
-    window.update_xyz(n[:,:,0], n[:,:,1], n[:,:,2], (R+.5,G+.5,B+.5,w*(R+G+B)))
+    window.update_xyz(n[:,:,0], n[:,:,1], n[:,:,2], (R,G,B,w*(R+G+B)))
     window.upvec = np.array([0,1,0])
     window.Refresh()
 
@@ -65,57 +63,60 @@ def once():
         (l,t),(r,b) = rect
         return m[t:b,l:r]
 
-    global mask, rect, modelmat
-    (mask,rect) = preprocess.threshold_and_mask(depth,config.bg)
+    global mask, rect
+    try:
+        (mask,rect) = preprocess.threshold_and_mask(depth,config.bg)
+    except IndexError:
+        return
 
     normals.opencl.set_rect(rect)
     normals.normals_opencl(depth, mask, rect).wait()
 
+    # Find the lattice orientation and then translation
     global R_oriented, R_aligned, R_correct
     R_oriented = lattice.orientation_opencl()
 
+    if 'R_correct' in globals():
+        # Correct the lattice ambiguity for 90 degree rotations just by
+        # using the previous estimate. This is good enough for illustrations
+        # but global alignment is preferred (see hashalign)
+        R_oriented,_ = grid.nearest(R_correct, R_oriented)
+
+    R_aligned = lattice.translation_opencl(R_oriented)
+    R_correct = R_aligned
+
+    # Find the color based on the labeling from lattice
+    global face, Xo, Yo, Zo
+    _,_,_,face = np.rollaxis(opencl.get_modelxyz(),1)
+
+    global cx,cy,cz
+    cx,cy,cz,_ = np.rollaxis(np.frombuffer(np.array(face).data,
+                                           dtype='i1').reshape(-1,4),1)-1
+    global R,G,B
+    R,G,B = [np.abs(_).astype('f') for _ in cx,cy,cz]
+    if 0:
+        G *= 0
+        R *= 0
+        B *= 0
+    else:
+        pass
+
+    # Draw the points collected on a sphere
     nw = normals.opencl.get_normals()
     global n,w
     n,w = nw[:,:,:3], nw[:,:,3]
-    #show_normals(n, w, 'normals_opencl')
-    #show_normals_sphere(n, w)
 
-    # Perform the 'labeling' by rotating the normals using the output from
-    # flatrot, then threshold with color_axis
-    global dx,dy,dz
-    global cx,cy,cz
-    global labelmask
-    X,Y,Z = n[:,:,0], n[:,:,1], n[:,:,2]
-    X,Y,Z = map(lambda _: _.copy(), (X,Y,Z))
-
-    if 1:
-        global label_image
-        label_image = classify.predict(depth)
-        blocks = from_rect((label_image[0]==0)|(label_image[1]<0.7) & mask, rect)
-        dx,dy,dz = lattice.project(X,Y,Z, R_oriented)
-        cx,cy,cz = lattice.color_axis(dx,dy,dz,w)
-        by = (np.abs(dy)<0.3) & (blocks)  # &blocks
-        labelmask = by
-
-        inlier = ((cx>0)|(cz>0))
-        outlier = ~inlier
-        correct = inlier&blocks | (outlier&~blocks)
-        incorrect = inlier&~blocks | (outlier&blocks)
-        X[~by] = Y[~by] = Z[~by] = 0
-
-        #R,G,B = (cx>0)&blocks, 0*blocks, (cz>0)&blocks
-        R,G,B = incorrect,by*0,correct
-        R,G,B = map(lambda _: _.astype('f'), (R,G,B))
+    if 1:  # Point cloud position mode
+        X,Y,Z,_ = np.rollaxis(opencl.get_xyz(),1)
     else:
-        dx,dy,dz = lattice.project(X,Y,Z, R_oriented)
-        cx,cy,cz = lattice.color_axis(dx,dy,dz,w)
-        R,G,B = np.abs(cx).astype('f'),cy.astype('f')*0,np.abs(cz).astype('f')
+        X,Y,Z = n[:,:,0], n[:,:,1], n[:,:,2]
+        X,Y,Z = map(lambda _: _.copy(), (X,Y,Z))
 
     # Render the points in 'table space' but colored with the axes from flatrot
-    window.update_xyz(X,Y,Z, COLOR=(R,G,B,R+G+B+.5))
+    window.update_xyz(X,Y,Z, COLOR=(R,G*0,B,R*0+w.flatten()))
     window.clearcolor = [1,1,1,0]
     window.Refresh()
-    pylab.imshow(1./depth)
+    #pylab.imshow(1./depth)
     pylab.waitforbuttonpress(0.01)
 
 
@@ -141,23 +142,29 @@ def start(dset=None, frame_num=0):
     else:
         config.load('data/newest_calibration')
         dataset.setup_opencl()
+        global R_correct
+        if 'R_correct' in globals():
+            del R_correct
 
 
 @window.event
 def post_draw():
     # Draw some axes
-    glLineWidth(3)
-    glPushMatrix()
-    if 'R_oriented' in globals():
-        glMultMatrixf(np.linalg.inv(R_oriented).transpose())
+    if 0:
+        glLineWidth(3)
+        glPushMatrix()
+        mat = np.eye(4)
+        mat[:3,:3] = R_correct[:3,:3]
+        if 'R_oriented' in globals():
+            glMultMatrixf(np.linalg.inv(mat).transpose())
 
-    glScalef(1.5,1.5,1.5)
-    glBegin(GL_LINES)
-    glColor3f(1,0,0); glVertex3f(0,0,0); glVertex3f(1,0,0)
-    glColor3f(0,1,0); glVertex3f(0,0,0); glVertex3f(0,1,0)
-    glColor3f(0,0,1); glVertex3f(0,0,0); glVertex3f(0,0,1)
-    glEnd()
-    glPopMatrix()
+        glScalef(1.5,1.5,1.5)
+        glBegin(GL_LINES)
+        glColor3f(1,0,0); glVertex3f(-1,0,0); glVertex3f(1,0,0)
+        glColor3f(0,1,0); glVertex3f(0,0,0); glVertex3f(0,1,0)
+        glColor3f(0,0,1); glVertex3f(0,0,-1); glVertex3f(0,0,1)
+        glEnd()
+        glPopMatrix()
 
 
 if 'window' in globals():

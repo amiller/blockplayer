@@ -12,6 +12,7 @@ class BlockWindow(PointWindow):
 
     def __init__(self, *args, **kwargs):
         self.modelmat = np.eye(4)
+        self.flag_drawgrid = False
         super(BlockWindow,self).__init__(*args, **kwargs)
 
     def draw_board(self):
@@ -22,7 +23,7 @@ class BlockWindow(PointWindow):
         # Draw the gray table
         if 'bg' in config.__dict__:
             glBegin(GL_QUADS)
-            glColor(0.6,0.7,0.7,1)
+            glColor(0.2,0.2,0.2,1)
             for x,y,z in config.bg['boundptsM']:
                 glVertex(x,y,z)
             glEnd()
@@ -50,11 +51,11 @@ class BlockWindow(PointWindow):
         glEnd()
 
         # Draw a grid for the model coordinate space
-        if 1:
+        if self.flag_drawgrid:
             glLineWidth(1)
             glBegin(GL_LINES)
-            GR = config.GRIDRAD
-            glColor3f(0.2,0.2,0.4)
+            GR = config.GRIDRAD/2
+            glColor3f(1.0,1.0,1.0)
             for j in range(0,1):
                 for i in range(-GR,GR+1):
                     glVertex(i,j,-GR); glVertex(i,j,GR)
@@ -62,6 +63,7 @@ class BlockWindow(PointWindow):
             glEnd()
             glPopMatrix()
             pass
+        glLineWidth(1)
 
     def on_draw(self):
         super(BlockWindow,self).set_camera()
