@@ -61,28 +61,38 @@ def run_grid():
     except:
         pass
     os.mkdir(out_path)
-    shutil.copy('makewww/ThreeCanvas.js',out_path)
-    shutil.copy('makewww/Plane.js',out_path)
-    shutil.copy('makewww/Cube.js',out_path)
+    shutil.copy('makewww/ThreeCanvas.js', out_path)
+    shutil.copy('makewww/Plane.js', out_path)
+    shutil.copy('makewww/Cube.js', out_path)
 
     with open('makewww/blockviewiframetemplate.html','r') as f:
         tmp = template.Template(f.read())
 
-    #datasets = glob.glob('data/sets/*')
-    datasets = glob.glob('data/sets/study_*')
+    datasets = glob.glob('data/sets/study*')
+    print datasets
+    
     for name in datasets:
-    #for name in ('data/sets/cube',):
         dataset.load_dataset(name)
         name = os.path.split(name)[1]
 
         import re
         number = int(re.match('.*_z(\d)m_.*', name).groups()[0])
-        with open('data/experiments/gt/gt%d.txt' % number) as f:
-            config.GT = grid.gt2grid(f.read())
+        custom = os.path.join('data/sets/', name, 'gt.txt')
+        if os.path.exists(custom):
+            f = open(custom, 'r')
+        else:
+            f = open('data/experiments/gt/gt%d.txt' % number, 'r')
+        
+        config.GT = grid.gt2grid(f.read())
+        f.close()
 
-        with open(os.path.join('data/experiments/output/',name,
-                               'output.pkl'),'r') as f:
-            output = pickle.load(f)
+        try:
+            with open(os.path.join('data/experiments/output/', name,
+                                   'output.pkl'),'r') as f:
+                output = pickle.load(f)
+        except IOError:
+            continue
+        
         with open(os.path.join('data/experiments/output/',name,
                                'final_output.txt'),'r') as f:
             final_output = f.read()
