@@ -51,8 +51,7 @@ def once():
         rgb,_ = opennpy.sync_get_video()
 
     main.update_frame(depth, rgb)
-
-        blockdraw.clear()
+    blockdraw.clear()
     try:
         c,_ = hashalign.find_best_alignment(grid.occ,0*grid.occ,
                                         target_model,~target_model)
