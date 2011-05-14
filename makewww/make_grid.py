@@ -3,6 +3,7 @@ import shutil
 import numpy as np
 import django.conf
 import time
+import re
 try:
     django.conf.settings.configure()
 except:
@@ -32,90 +33,76 @@ def write_grid(ds):
                    fps='%.2f' % (d['frames'] / d['time']))
         runs.append(run)
 
-    t = template.Template("""
-    <title>Blockplayer</title>
-    <h3>Blockplayer Output</h3>
-    {% for run in runs %}
-    <div style='float:left'>
-    <h4>{{ run.name }}
-      <a href="{{ run.name }}_block.html">[fullscreen]</a>
-      <a href="/videos/{{ run.name }}.webm">[video]</a>
-    </h4>
-    <div>
-       {{ run.frames }} frames in {{ run.time }} seconds ({{ run.fps }} fps)
-    </div>
-    <iframe src="{{ run.name }}_block.html" width="256" height="256">
-    </iframe>
-    </div>
-    {% endfor %}
-    """)
-    with open(os.path.join(out_path,'index.html'),'w') as f:
-        f.write(t.render(template.Context(locals())))
+    with open('makewww/index.html','r') as f:
+        t = template.Template(f.read())
+    
+    with open(os.path.join(out_path,'index.html'), 'w') as f:
+        f.write(t.render(template.Context({"runs": runs})))
 
 
-def run_grid():
+def run_grid(clearout=True):
     global ds
     ds = []
-
+    
+    if clearout:
+      try:
+          shutil.rmtree(out_path)
+      except:
+          pass
     try:
-        shutil.rmtree(out_path)
-    except:
+        os.makedirs(out_path)
+    except OSError:
         pass
-    os.mkdir(out_path)
+    
     shutil.copy('makewww/ThreeCanvas.js', out_path)
     shutil.copy('makewww/Plane.js', out_path)
     shutil.copy('makewww/Cube.js', out_path)
+    shutil.copy('makewww/video.js', out_path)
+    shutil.copy('makewww/video-js.css', out_path)
+    shutil.copy('makewww/default.jpg', out_path)
 
     with open('makewww/blockviewiframetemplate.html','r') as f:
         tmp = template.Template(f.read())
 
     datasets = glob.glob('data/sets/study*')
-<<<<<<< HEAD
-    print datasets
-    
-=======
->>>>>>> faa4ffb10b4b99637749ead66f3dd2da7c2f2a1f
-    for name in datasets:
+    total = len(datasets)
+    for x,name in enumerate(datasets):
         dataset.load_dataset(name)
         name = os.path.split(name)[1]
-
-        import re
-        number = int(re.match('.*_z(\d)m_.*', name).groups()[0])
-<<<<<<< HEAD
+        
+        # Open the ground truth file
         custom = os.path.join('data/sets/', name, 'gt.txt')
         if os.path.exists(custom):
-            f = open(custom, 'r')
+            # Try dataset directory first
+            fname = custom
         else:
-            f = open('data/experiments/gt/gt%d.txt' % number, 'r')
+            # Fall back on generic ground truth file
+            match = re.match('.*_z(\d)m_.*', name)
+            if match is None:
+                continue
+            
+            number = int(match.groups()[0])
+            fname = 'data/experiments/gt/gt%d.txt' % number
         
-        config.GT = grid.gt2grid(f.read())
-        f.close()
+        # Load the ground truth file
+        with open(fname) as fp:
+            config.GT = grid.gt2grid(fp.read())
 
         try:
             with open(os.path.join('data/experiments/output/', name,
-=======
-        with open('data/experiments/gt/gt%d.txt' % number) as f:
-            config.GT = grid.gt2grid(f.read())
-
-        try:
-            with open(os.path.join('data/experiments/output/',name,
->>>>>>> faa4ffb10b4b99637749ead66f3dd2da7c2f2a1f
-                                   'output.pkl'),'r') as f:
+                    'output.pkl'),'r') as f:
                 output = pickle.load(f)
         except IOError:
             continue
-<<<<<<< HEAD
         
-=======
->>>>>>> faa4ffb10b4b99637749ead66f3dd2da7c2f2a1f
         with open(os.path.join('data/experiments/output/',name,
-                               'final_output.txt'),'r') as f:
+                'final_output.txt'),'r') as f:
             final_output = f.read()
 
         folder = os.path.join(out_path, name)
         os.mkdir(folder)
 
-        print name
+        print "(%d/%d)" % (x+1,total), name
         out = grid.gt2grid(final_output)
 
         def gridstr(g):
@@ -142,11 +129,27 @@ def run_grid():
 
         with open(os.path.join(out_path, '%s_block.txt' % name) ,'w') as f:
             f.write(grid.gt2grid(final_output))
-
-        ds.append(output)
+        
+        # Only take the metadata we need from the output
+        d = dict([(key,output[key]) for key in ('name', 'frames', 'time')])
+        ds.append(d)
     return ds
 
 
 if __name__ == "__main__":
-    ds = run_grid()
+    ds = None
+    pkl_file = "makewww_results.pkl"
+    if os.path.exists(pkl_file):
+        ans = raw_input("Saved results available; use them instead? ([y]/n) ")
+        if not ans.startswith("n"):
+            with open(pkl_file, 'r') as fp:
+                ds = pickle.load(fp)
+    
+    if ds is None:
+        ds = run_grid()
+    
+    with open(pkl_file, 'w') as fp:
+        pickle.dump(ds, fp)
+    
     write_grid(ds)
+
