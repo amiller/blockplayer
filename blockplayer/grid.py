@@ -34,10 +34,13 @@ if not 'previous_estimate' in globals():
     initialize()
 
 
-def gt2grid(gtstr):
+def gt2grid(gtstr, chars='*rR'):
     g = np.array(map(lambda _: map(lambda __: tuple(__), _), eval(gtstr)))
     g = np.rollaxis(g,1)
-    return np.ascontiguousarray(g=='*')
+    res = (g==chars[0])
+    for c in chars[1:]:
+        res = np.logical_or(res, g==c)
+    return np.ascontiguousarray(res)
 
 
 def grid2gt(occ):
@@ -139,7 +142,7 @@ def xcorr_correction(A, B):
     B = apply_correction(B, bx, bz, br)
 
     err = float((A&~B).sum()+(B&~A).sum()) / B.sum()
-    return A, B, err, (x,z,r), (bx,bz,e)
+    return A, B, err, (x,z,r), (bx,bz,br)
 
 
 def show_votegrid(vg, color=(1,0,0), opacity=1):
