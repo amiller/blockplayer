@@ -17,7 +17,7 @@ def run_error():
     datasets.sort()
     d = {}
     for name in datasets:
-        #if 'user1' in name: continue
+        if 'user4' in name: continue
         dataset.load_dataset(name)
         name = os.path.split(name)[1]
         print name
