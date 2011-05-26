@@ -17,6 +17,7 @@ import cPickle as pickle
 from blockplayer import config
 from blockplayer import dataset
 from blockplayer import grid
+from blockplayer import hashalign
 
 out_path = os.path.join('www','grid')
 
@@ -112,28 +113,38 @@ def run_grid(clearout=True):
 
         print "(%d/%d)" % (x+1,total), name
         out = grid.gt2grid(final_output)
-        
-        if config.GT is not None:
-            gt = config.GT
-            _,gt,_,ca,cb = grid.xcorr_correction(out, gt)
-            
-            added = grid.apply_correction(added, ca[0], ca[1], ca[2])
-            added = grid.apply_correction(added, cb[0], cb[1], cb[2])
-            
-            removed = grid.apply_correction(removed, ca[0], ca[1], ca[2])
-            removed = grid.apply_correction(removed, cb[0], cb[1], cb[2])
-            
-            red = ~removed & ((gt | added) & ~out) # Incorrect remove
-            yellow = ~added & (~gt & out) # Incorrect add
-            purple = removed & ~out # Correct remove
-            blue = added & out # Correct add
-            green = (gt & out) & ~removed & ~added # Correct block place
-        else:
+        gt = config.GT
+
+        try:
+            c,_ = hashalign.find_best_alignment(out, 0*out, gt, 0*gt)
+        except ValueError:
             red = out
             yellow = 0*out
             green = 0*out
             purple = 0*out
-            green = 0*out
+            blue = 0*out
+            err = gt.sum()
+        else:
+            gt = hashalign.apply_correction(gt, *c)
+            added = hashalign.apply_correction(added, *c)
+            removed = hashalign.apply_correction(removed, *c)
+            should_be_there = gt | added 
+            shouldnot_be_there = (~gt & ~added) | removed
+            # Sanity check
+            assert np.all(shouldnot_be_there ^ should_be_there)
+
+            red = ~out & should_be_there
+            yellow = out & shouldnot_be_there # Incorrect add
+            purple = ~out & removed # Correct remove
+            blue = out & added # Correct add
+            green = out & gt # Correct block place
+
+            # Sanity checks
+            assert np.all(red+yellow+purple+blue+green <= 1)
+            assert np.sum(red) + np.sum(blue) + np.sum(green) == np.sum(should_be_there)
+
+            err = np.sum(yellow | red) 
+            print err, gt.sum(), err/float(gt.sum())
 
         with open(os.path.join(out_path, '%s_block.html' % name),'w') as f:
             f.write(tmp.render(template.Context(dict(
@@ -146,7 +157,7 @@ def run_grid(clearout=True):
 
         with open(os.path.join(out_path, '%s_block.txt' % name) ,'w') as f:
             f.write(grid.gt2grid(final_output))
-        
+
         # Only take the metadata we need from the output
         d = dict([(key,output[key]) for key in ('name', 'frames', 'time')])
         ds.append(d)
