@@ -31,14 +31,27 @@ def write_grid(ds):
         run = dict(name=d['name'],
                    frames=d['frames'],
                    time='%.2f' % d['time'],
-                   fps='%.2f' % (d['frames'] / d['time']))
+                   fps='%.2f' % (d['frames'] / d['time']),
+                   total=d['total'],
+                   incorrect=d['incorrect'],
+                   error=d['error'])
         runs.append(run)
 
     with open('makewww/index.html','r') as f:
         t = template.Template(f.read())
     
-    with open(os.path.join(out_path,'index.html'), 'w') as f:
-        f.write(t.render(template.Context({"runs": runs})))
+    numruns = len(runs)
+    for i in xrange(0, numruns, 3):
+        name = '%d.html' % (i/3+1)
+        if i == 0:
+            name = "index.html"
+        with open(os.path.join(out_path, name), 'w') as f:
+            f.write(t.render(template.Context({
+                "runs": runs[i:i+3],
+                "page": i/3+1,
+                "pages": xrange(1,numruns/3+1),
+                "numpages": numruns/3+1,
+            })))
 
 def gridstr(g):
     g = np.array(np.nonzero(g))
@@ -118,12 +131,11 @@ def run_grid(clearout=True):
         try:
             c,_ = hashalign.find_best_alignment(out, 0*out, gt, 0*gt)
         except ValueError:
-            red = out
+            red = gt | added
             yellow = 0*out
             green = 0*out
             purple = 0*out
             blue = 0*out
-            err = gt.sum()
         else:
             gt = hashalign.apply_correction(gt, *c)
             added = hashalign.apply_correction(added, *c)
@@ -140,26 +152,46 @@ def run_grid(clearout=True):
             green = out & gt # Correct block place
 
             # Sanity checks
-            assert np.all(red+yellow+purple+blue+green <= 1)
+            assert np.all((red+yellow+purple+blue+green) <= 1)
             assert np.sum(red) + np.sum(blue) + np.sum(green) == np.sum(should_be_there)
 
-            err = np.sum(yellow | red) 
-            print err, gt.sum(), err/float(gt.sum())
-
+            #err = np.sum(yellow | red) 
+            #print err, gt.sum(), err/float(gt.sum())
+        
+        # Output display
         with open(os.path.join(out_path, '%s_block.html' % name),'w') as f:
             f.write(tmp.render(template.Context(dict(
                 red=gridstr(red),
                 blue=gridstr(blue),
                 green=gridstr(green),
                 yellow=gridstr(yellow),
-                purple=gridstr(purple)
+                purple=gridstr(purple),
+                msg="Output"
             ))))
-
+        
+        # Ground truth display
+        with open(os.path.join(out_path, '%s_gt.html' % name),'w') as f:
+            f.write(tmp.render(template.Context(dict(
+                blue=gridstr(added),
+                green=gridstr(gt),
+                purple=gridstr(removed),
+                red='[]',
+                yellow='[]',
+                msg="Ground Truth"
+            ))))
+        
+        totalblocks = np.sum(green + red + blue)
+        incorrect = np.sum(red + yellow)
+        
         with open(os.path.join(out_path, '%s_block.txt' % name) ,'w') as f:
             f.write(grid.gt2grid(final_output))
-
+        
         # Only take the metadata we need from the output
-        d = dict([(key,output[key]) for key in ('name', 'frames', 'time')])
+        d = dict([(key,output[key]) for key in ('frames', 'time')])
+        d['name'] = name
+        d['total'] = totalblocks
+        d['incorrect'] = incorrect
+        d['error'] = float(incorrect) / totalblocks * 100
         ds.append(d)
     return ds
 

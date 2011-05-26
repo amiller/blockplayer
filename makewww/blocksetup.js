@@ -18,10 +18,10 @@ function init() {
 
   var info = document.createElement( 'div' );
   info.style.position = 'absolute';
-  info.style.top = '5px';
+  info.style.top = '2px';
   info.style.width = '100%';
   info.style.textAlign = 'center';
-  info.innerHTML = '<span style="color: #444; background-color: #fff; border-bottom: 1px solid #ddd; padding: 8px 10px; text-transform: uppercase;">BLOCKS</span>';
+  info.innerHTML = '<span style="color: #444; background-color: #fff; border-bottom: 1px solid #ddd; padding: 4px 6px; text-transform: uppercase;">' + msg + '</span>';
   container.appendChild( info );
 
   camera = new THREE.Camera( 40, window.innerWidth / window.innerHeight, 1, 10000 );

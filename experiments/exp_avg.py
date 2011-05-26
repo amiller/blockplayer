@@ -17,7 +17,7 @@ def run_error():
     datasets.sort()
     d = {}
     for name in datasets:
-        if 'user1' in name: continue
+        #if 'user1' in name: continue
         dataset.load_dataset(name)
         name = os.path.split(name)[1]
         print name
@@ -60,7 +60,11 @@ def run_error():
         try:
             c,_ = hashalign.find_best_alignment(out, 0*out, gt, 0*gt)
         except ValueError:
-            err = gt.sum()
+            red = gt | added
+            yellow = 0*out
+            green = 0*out
+            purple = 0*out
+            blue = 0*out
         else:
             gt = hashalign.apply_correction(gt, *c)
             added = hashalign.apply_correction(added, *c)
@@ -80,8 +84,9 @@ def run_error():
             assert np.all(red+yellow+purple+blue+green <= 1)
             assert np.sum(red) + np.sum(blue) + np.sum(green) == np.sum(should_be_there)
 
-            err = np.sum(yellow | red) 
-            print err, gt.sum(), err/float(gt.sum())
+        err = np.sum(yellow | red) 
+        totalblocks = np.sum(red | green | blue)
+        print err, totalblocks, float(err)/totalblocks
 
         import re
         re.match('dfsdf', name)
@@ -90,7 +95,7 @@ def run_error():
         #assert err == err1/float(gt.sum())
         d[name] = {'err': err,
                    'tot': (red+green+blue).sum(),
-                   'rel': err/float((red+green+blue).sum()),
+                   'rel': err/float(totalblocks),
                    'num': number,
                    'type': kind,}
         d[name].update(dict(green=green,

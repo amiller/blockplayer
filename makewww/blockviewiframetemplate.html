@@ -20,15 +20,18 @@
     <script type="text/javascript" src="Cube.js"></script>
     <script type="text/javascript">
       // Correct block
-      var grid_green = {{ green}};
+      var grid_green = {{ green|default:"[]" }};
       // Correct add
-      var grid_blue = {{ blue }};
+      var grid_blue = {{ blue|default:"[]" }};
       // Correct removal
-      var grid_purple = {{ purple }};
+      var grid_purple = {{ purple|default:"[]" }};
       // Incorrect removal
-      var grid_red = {{ red }};
+      var grid_red = {{ red|default:"[]" }};
       // Incorrect add
-      var grid_yellow = {{ yellow }};
+      var grid_yellow = {{ yellow|default:"[]" }};
+      
+      // Message to display at top
+      var msg = "{{ msg }}";
     </script>
     <script type="text/javascript" src="blocksetup.js"></script>
   </body>

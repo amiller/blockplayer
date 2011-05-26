@@ -3,28 +3,65 @@
     <title>Blockplayer</title>
     <script type="text/javascript" language="javascript" src="video.js"></script>
     <link rel="stylesheet" type="text/css" href="video-js.css" />
+    <style type="text/css">
+      body { font-family: 'Times New Roman'; }
+    </style>
   </head>
   <body>
-    <h3>Blockplayer Output</h3>{% for run in runs %}{% if forloop.counter0|divisibleby:2 and not forloop.first %}
-    <div style="clear: both;"> </div>
-    <hr />{% endif %}
-    <div id="{{ run.name }}_container" style="float:left; margin-left: 40px; text-align: center;">
+    <h2>Blockplayer Output</h2>
+    <div id="color-legend" style="width: 1024px; margin: 0 auto;">
+      <h3>Ground Truth Legend</h3>
+      <table cellspacing="8">
+        <tbody>
+          <tr>
+            <td style="height: 25px; width: 25px; background-color: #80DF1F; opacity: 0.8"> </td>
+            <td style="padding-right: 50px">Correct placement</td>
+            <td style="height: 25px; width: 25px; background-color: #1F4FDF; opacity: 0.8;"> </td>
+            <td style="padding-right: 50px">Correct addition</td>
+            <td style="height: 25px; width: 25px; background-color: #7F1FDF; opacity: 0.8;"> </td>
+            <td style="padding-right: 50px">Correct removal</td>
+          </tr>
+          <tr>
+            <td height="40" style="height: 25px; width: 25px; background-color: #DFAF1F; opacity: 0.8;"> </td>
+            <td style="padding-right: 50px">Incorrect addition</td>
+            <td style="height: 25px; width: 25px; background-color: #DF1F1F; opacity: 0.8;"> </td>
+            <td style="padding-right: 50px">Incorrect removal</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>{% for run in runs %}
+    <div id="{{ run.name }}_container" style="text-align: center; width: 1024px; margin: 0 auto;">
       <h4>{{ run.name }}
         <a href="{{ run.name }}_block.html">[fullscreen]</a>
       </h4>
-      <div class="video-js-box" style="float:left; margin-top: 20px;">
-        <video class="video-js" width="320" height="240" controls preload poster="default.jpg">
-          <source src="videos/{{ run.name }}.webm" type='video/webm; codecs="vp8,vorbis"' />
-          <img src="default.jpg" width="320" height="240" alt="{{ run.name }} source video" title="No video playback capabilities." />
-        </video>
-      </div>
-      <div style="float:left; margin-left: 20px;">
-        <div>
-           <strong>{{ run.frames }}</strong> frames in <strong>{{ run.time }}</strong> seconds (<em>{{ run.fps }}</em> fps)
-        </div>
-        <iframe src="{{ run.name }}_block.html" width="320" height="240">
+      <div style="float:left; margin-left: 12px;">
+        <div>Ground Truth</div>
+        <iframe src="{{ run.name }}_gt.html" width="320" height="240" frameborder="0">
         </iframe>
       </div>
+      <div class="video-js-box" style="float:left; margin-top: 10px; margin-left: 12px; margin-bottom: 20px; text-align: center;">
+        <div style="font-size: 13px; padding-bottom: 10px;"><a href="videos/{{ run.name }}.mp4">Download video</a></div>
+        <video class="video-js" width="320" height="240" controls preload poster="default.jpg">
+          <source src="videos/{{ run.name }}.mp4" type='video/mp4; codecs="avc1.42E01E, mp4a.40.2"' />
+          <object class="vjs-flash-fallback" width="320" height="240" type="application/x-shockwave-flash" data="http://releases.flowplayer.org/swf/flowplayer-3.2.1.swf">
+            <param name="movie" value="http://releases.flowplayer.org/swf/flowplayer-3.2.1.swf" />
+            <param name="allowfullscreen" value="true" />
+            <param name="flashvars" value='config={"playlist":[{"url": "videos/{{ run.name }}.mp4","autoPlay":false,"autoBuffering":true}]}' />
+          </object>
+      </div>
+      <div style="float:left; margin-left: 15px; margin-top: 5px;">
+        <div style="font-size: 13px;">
+           <strong>{{ run.frames }}</strong> frames in <strong>{{ run.time }}</strong> seconds (<em>{{ run.fps }}</em> fps). {{ run.error|floatformat:"-2" }}% block error.
+        </div>
+        <iframe src="{{ run.name }}_block.html" width="320" height="240" frameborder="0">
+        </iframe>
+      </div>
+      <div style="clear: both;{% if not forloop.last %} border-top: 2px solid black;{% endif %}"> </div>
     </div>{% endfor %}
+    <div style="text-align: center; width: 1024px; margin: 0 auto;">
+        {% if page != 1 %}<a href="{% if page == 2 %}index{% else %}{{ page|add:'-1' }}{% endif %}.html">&lt; Prev</a> {% endif %}
+        {% for n in pages %}<a href="{% if n == 1 %}index{% else %}{{ n }}{% endif %}.html">{% if n == page %}<strong style="font-size: 1.5em;">{{ n }}</strong>{% else %}{{ n }}{% endif %}</a> {% endfor %}
+        {% if page|add:'-1' != numpages %}<a href="{{ page|add:'1' }}.html">Next &gt;</a>{% endif %}
+    </div>
   </body>
 </html>
