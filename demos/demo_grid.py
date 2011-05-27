@@ -2,6 +2,7 @@ import numpy as np
 import pylab
 from OpenGL.GL import *
 import opennpy
+import os
 
 if not 'FOR_REAL' in globals():
     FOR_REAL = False
@@ -52,6 +53,7 @@ def once():
     main.update_frame(depth, rgb)
 
     blockdraw.clear()
+    blockdraw.show_grid('o1', main.occvac.occ, color=np.array([1,1,0,1]))
     if 'RGB' in stencil.__dict__:
         blockdraw.show_grid('occ', grid.occ, color=grid.color)
     else:
@@ -64,15 +66,15 @@ def once():
     else:
         window.clearcolor=[0,0,0,0]
         #window.clearcolor=[1,1,1,0]
-        window.flag_drawgrid = False
+        window.flag_drawgrid = True
 
-    if 0:
+    if 1:
         update_display()
 
     if 'R_correct' in main.__dict__:
         window.modelmat = main.R_display
 
-    #show_rgb(rgb)
+    show_rgb(rgb)
     window.Refresh()
     pylab.waitforbuttonpress(0.005)
     sys.stdout.flush()
@@ -96,9 +98,20 @@ def start(dset=None, frame_num=0):
         while dataset.frame_num < frame_num:
             dataset.advance()
 
-        import re
-        number = int(re.match('.*_z(\d)m_.*', dset).groups()[0])
-        with open('data/experiments/gt/gt%d.txt' % number) as f:
+        name = dset
+        name = os.path.split(name)[1]
+        custom = os.path.join('data/sets/', name, 'gt.txt')
+        if os.path.exists(custom):
+            # Try dataset directory first
+            fname = custom
+        else:
+            import re
+            # Fall back on generic ground truth file
+            match = re.match('.*_z(\d)m_(.*)', name)            
+            number = int(match.groups()[0])
+            fname = 'data/experiments/gt/gt%d.txt' % number
+
+        with open(fname) as f:
             GT = grid.gt2grid(f.read())
         grid.initialize_with_groundtruth(GT)
 
@@ -118,6 +131,7 @@ def go(dset=None, frame_num=0, forreal=False):
 def update_display():
     global face, Xo, Yo, Zo
 
+    _,_,_,face = np.rollaxis(opencl.get_modelxyz(),1)
     Xo,Yo,Zo,_ = np.rollaxis(opencl.get_xyz(),1)
 
     global cx,cy,cz
@@ -125,6 +139,8 @@ def update_display():
                                            dtype='i1').reshape(-1,4),1)-1
     R,G,B = [np.abs(_).astype('f') for _ in cx,cy,cz]
 
+    if 1:
+        window.update_xyz(Xo, Yo, Zo, (R,G,B,R*0+1))
     window.Refresh()
 
 
