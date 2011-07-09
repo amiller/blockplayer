@@ -22,7 +22,18 @@ from blockplayer import blockdraw
 from blockplayer import dataset
 from blockplayer import main
 from blockplayer import colormap
+from blockplayer import blockcraft
 import cv
+
+
+def show_rotated():
+    g = main.grid.occ
+    #g = blockcraft.centered_rotated(main.R_correct, g)
+    g = blockcraft.translated_rotated(main.R_correct, g)    
+    marginal = g.sum(1).astype('u1')*255
+    cv.NamedWindow('scale_test', 0)
+    cv.ShowImage('scale_test', marginal)
+    cv.ResizeWindow('scale_test', 300, 300)
 
 
 def show_rgb(rgb):
@@ -141,6 +152,8 @@ def update_display():
 
     if 1:
         window.update_xyz(Xo, Yo, Zo, (R,G,B,R*0+1))
+
+    show_rotated()
     window.Refresh()
 
 
