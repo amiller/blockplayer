@@ -11,6 +11,7 @@ from blockplayer import stencil
 from blockplayer import blockdraw
 from blockplayer import dataset
 from blockplayer import main
+from blockplayer import blockcraft
 import opennpy
 
 from blockplayer.visuals.blockwindow import BlockWindow
@@ -56,6 +57,9 @@ def once():
 
     if 'R_correct' in main.__dict__:
         window.modelmat = main.R_display
+    
+    g = blockcraft.translated_rotated(main.R_correct, grid.occ)
+    talk_to_minecraft(g)
 
     #show_rgb(rgb)
     window.Refresh()
@@ -122,9 +126,10 @@ socket = context.socket(zmq.PAIR)
 socket.connect('tcp://*:8134')
 
 
-def talk_to_minecraft():
+def talk_to_minecraft(voxels=None):
     global context,socket
-    voxels = grid.occ
+    if voxels is None:
+        voxels = grid.occ
     socket.send(voxels)
 
 if __name__ == '__main__':
