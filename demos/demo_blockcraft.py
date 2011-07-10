@@ -43,25 +43,15 @@ def once():
     else:
         blockdraw.show_grid('occ', grid.occ, color=np.array([1,0.6,0.6,1]))
 
-    #blockdraw.show_grid('vac', grid.vac,
-    #                    color=np.array([0.6,1,0.6,0]))
-    if 0 and lattice.is_valid_estimate():
-        window.clearcolor=[0.9,1,0.9,0]
-    else:
-        window.clearcolor=[0,0,0,0]
-        #window.clearcolor=[1,1,1,0]
-        window.flag_drawgrid = True
-
-    if 0:
-        update_display()
+    window.clearcolor=[0,0,0,0]
+    window.flag_drawgrid = True
 
     if 'R_correct' in main.__dict__:
         window.modelmat = main.R_display
     
     g = blockcraft.translated_rotated(main.R_correct, grid.occ)
     talk_to_minecraft(g)
-
-    #show_rgb(rgb)
+    
     window.Refresh()
     pylab.waitforbuttonpress(0.005)
     import sys
@@ -95,20 +85,6 @@ def go(dset=None, frame_num=0, forreal=False):
     FOR_REAL = forreal
     start(dset, frame_num)
     resume()
-
-
-def update_display():
-    global face, Xo, Yo, Zo
-
-    Xo,Yo,Zo,_ = np.rollaxis(opencl.get_xyz(),1)
-
-    global cx,cy,cz
-    cx,cy,cz,_ = np.rollaxis(np.frombuffer(np.array(face).data,
-                                           dtype='i1').reshape(-1,4),1)-1
-    R,G,B = [np.abs(_).astype('f') for _ in cx,cy,cz]
-
-    window.Refresh()
-
 
 @window.event
 def post_draw():

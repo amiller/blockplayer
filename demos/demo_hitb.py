@@ -1,9 +1,28 @@
 import struct
+import random
+import os.path
+from glob import glob
+from threading import Timer
 
 import zmq
+import numpy as np
 
+from blockplayer import main
+from blockplayer import stencil
+from blockplayer import config
+from blockplayer import blockcraft
+from blockplayer import blockdraw
+from blockplayer import dataset
+from blockplayer.visuals.blockwindow import BlockWindow
+import opennpy
+
+FOR_REAL = True
 # The maximum number of commands in the queue before it gets sent
 MAX_COMMANDS = 128
+
+class HitBException(Exception):
+    pass
+
 
 if 'socket' in globals():
     socket.close()
@@ -79,8 +98,14 @@ class Board:
     BOARD_WIDTH = 12;
     BOARD_HEIGHT = 9;
     
+    PLAY_WIDTH = 9
+    PLAY_HEIGHT = BOARD_HEIGHT
+    
     def __init__(self):
         self.wall_offset = 0
+        
+        self.x_design = None
+        self.z_design = None
     
     def set_block(self, x, y, z, typ):
         add_queue(build_block(x, y, z, typ))
@@ -178,30 +203,211 @@ class Board:
         
         # Don't intersect the walls if they're in the playing area
         intersect = 0
-        if offset > self.BOARD_LENGTH-self.BOARD_WIDTH:
-            intersect = offset-(self.BOARD_LENGTH-self.BOARD_WIDTH)-1
+        #if offset > self.BOARD_LENGTH-self.BOARD_WIDTH:
+        #    intersect = offset-(self.BOARD_LENGTH-self.BOARD_WIDTH)-1
         
         for x in xrange(1, self.BOARD_WIDTH-1+1-intersect):
             for y in xrange(self.BOARD_HEIGHT+1):
                 # x-side (left from origin) wall
                 self.set_wool(self.BOARD_LENGTH-offset, y, x, DyeColor.YELLOW)
+                
                 # z-side (right from origin) wall
                 self.set_wool(x, y, self.BOARD_LENGTH-offset, DyeColor.YELLOW)
+                #    self.set_block(x, y, self.BOARD_LENGTH-offset, Material.AIR)
+        
+        # Clear away any design
+        if self.x_design is not None:
+            for x,row in enumerate(self.x_design):
+                for y,isset in enumerate(row):
+                    if isset:
+                        self.set_block(self.BOARD_LENGTH-offset, y, x+2, Material.AIR)
+        
+        if self.z_design is not None:
+            for x,row in enumerate(self.z_design):
+                for y,isset in enumerate(row):
+                    if isset:
+                        self.set_block(x+2, y, self.BOARD_LENGTH-offset, Material.AIR)
         
         self.wall_offset = offset
         send_globalqueue()
+    
+    def load_design(self, path):
+        """Load in the x and z wall designs from the file at `path`"""
+        with open(path, 'r') as fp:
+            lines = fp.readlines(self.PLAY_WIDTH)
+            if len(lines) != self.PLAY_HEIGHT*2 + 1:
+                raise HitBException("Cutout design file \"%s\" incorrectly formatted." % path)
+            
+            # Create the empty design lists
+            self.x_design = []
+            self.z_design = []
+            for x in xrange(self.PLAY_WIDTH):
+                self.x_design.append([False]*self.PLAY_HEIGHT)
+                self.z_design.append([False]*self.PLAY_HEIGHT)
+            
+            # Fill the x-side design
+            for y,line in enumerate(lines[:self.PLAY_HEIGHT]):
+                for x,c in enumerate(line):
+                    if c == '\n': continue
+                    self.x_design[x][self.PLAY_HEIGHT-y-1] = (c == '#')
+            
+            # Fill the z-side design
+            for y,line in enumerate(lines[self.PLAY_HEIGHT+1:]):
+                for x,c in enumerate(line):
+                    if c == '\n': continue
+                    self.z_design[x][self.PLAY_HEIGHT-y-1] = (c == '#')
+    
+    def clear_design(self):
+        """Clears both wall designs"""
+        self.x_design = []
+        self.z_design = []
+    
+    def update_blocks(self, blocks):
+        """Draw the blocks in the playing area. The blocks array must be of size
+        PLAY_WIDTH x PLAY_WIDTH x PLAY_HEIGHT"""
+        
 
 
 class Game:
+    STATE_NOTPLAYING = 0
+    STATE_LOADDESIGN = 1
+    STATE_COUNTDOWN = 2
+    STATE_MOVEWALL = 3
+    STATE_CHECKWALL = 4
+    
     def __init__(self, clear_bounds=True):
+        self.state = Game.STATE_NOTPLAYING
+        self.countdown = 5
+        self.round = 0
+        self.score = 0
+        self.wall_offset = 0
+        
+        self.block_loop_quit = False
+        self.blocks = None
+        self.window = None
+        
         self.board = Board()
         
         if clear_bounds:
             self.board.clear_bounds()
         
         self.board.setup_gameboard()
+        
+        # Find all the designs in the cutouts directory
+        self.designs = []
+        self.used_designs = []
+        self.designs_dir = os.path.join('.', os.path.dirname(__file__), 'cutouts')
+        if os.path.exists(self.designs_dir):
+            self.designs = glob(self.designs_dir + '/*')
+            random.shuffle(self.designs)
+    
+    def send_message(self, message):
+        add_queue(build_message(message))
+        send_globalqueue()
+    
+    def load_design(self):
+        """Loads the next design and pops it into used_designs"""
+        if len(self.designs) == 0:
+            if len(self.used_designs) == 0:
+                print "No designs available!"
+                return
+            self.designs = self.used_designs
+            random.shuffle(self.designs)
+            self.used_designs = []
+        
+        design = self.designs.pop()
+        self.board.load_design(design)
+        self.used_designs.append(design)
+    
+    def block_setup(self):
+        """Initialize blockplayer stuff"""
+        self.window = BlockWindow(title='demo_grid', size=(640,480))
+        self.window.Move((0,0))
+        
+        main.initialize()
+        
+        config.load('data/newest_calibration')
+        opennpy.align_depth_to_rgb()
+        dataset.setup_opencl()
+        
+        self.block_loop_quit = False
+        Timer(0.01, self.block_loop).start()
+    
+    def block_slice(self, blocks):
+        """Slices `blocks` to fit the playing area."""
+        l,h,w = blocks.size
+        return (blocks[l-Board.PLAY_WIDTH/2:l+Board.PLAY_WIDTH/2]
+            [:Board.PLAY_HEIGHT][w-Board.PLAY_WIDTH/2:w+Board.PLAY_WIDTH/2])
+    
+    def block_loop(self):
+        """Process the next blockplayer frame"""
+        while not self.block_loop_quit:
+            opennpy.sync_update()
+            depth,_ = opennpy.sync_get_depth()
+            rgb,_ = opennpy.sync_get_video()
+            
+            main.update_frame(depth, rgb)
+            
+            blockdraw.clear()
+            if hasattr(stencil, 'RGB'):
+                blockdraw.show_grid('occ', main.grid.occ, color=main.grid.color)
+            else:
+                blockdraw.show_grid('occ', main.grid.occ, color=np.array([1,0.6,0.6,1]))
+            
+            self.window.clearcolor = [0,0,0,0]
+            self.window.flag_drawgrid = True
+            
+            if hasattr('R_correct', main):
+                self.window.modelmat = main.R_display
+            
+            self.window.Refresh()
+            if self.state != Game.STATE_CHECKWALL:
+                self.blocks = blockcraft.translated_rotated(main.R_correct, main.grid.occ)
+                self.board.update_blocks(self.blocks)
+    
+    def start(self):
+        if self.state == Game.STATE_NOTPLAYING:
+            self.countdown = 5
+            self.round += 1
+            self.wall_offset = 0
+            self.board.clear_design()
+            
+            self.block_setup()
+            self.state = Game.STATE_LOADDESIGN
+        
+        if self.state == Game.STATE_LOADDESIGN:
+            self.load_design()
+            self.board.draw_gamewalls()
+            self.state = Game.STATE_COUNTDOWN
+        
+        if self.state == Game.STATE_COUNTDOWN:
+            if self.countdown == 0:
+                self.state = Game.STATE_MOVEWALL
+            else:
+                self.send_message("Round %d starts in %d second%s." % (self.round,
+                    self.countdown, "" if self.countdown == 1 else "s"))
+                self.countdown -= 1
+                Timer(1.0, self.start).start()
+       
+        if self.state == Game.STATE_MOVEWALL:
+            if self.wall_offset >= Board.BOARD_LENGTH - Board.PLAY_WIDTH - 2:
+                self.state = Game.STATE_CHECKWALL
+            else:
+                self.wall_offset += 1
+                self.board.draw_gamewalls(self.wall_offset)
+                Timer(0.5, self.start).start()
+        
+        if self.state == Game.STATE_CHECKWALL:
+            if self.wall_offset >= Board.BOARD_LENGTH - 2:
+                # WIN
+                pass
+            else:
+                self.wall_offset += 1
+                self.board.draw_gamewalls(self.wall_offset)
+                Timer(0.5, self.start).start()
 
 
 if __name__ == '__main__':
     game = Game()
+    game.start()
 
