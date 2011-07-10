@@ -29,6 +29,3 @@ def translated_rotated(R_correct, occ):
 
     return hashalign.apply_correction(occ, bx, 0, bz, -angle_90)
 
-
-def asdfasdfasdfasdf():
-    pass
