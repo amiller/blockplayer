@@ -54,39 +54,37 @@ def update_frame(depth, rgb=None):
     np.seterr(divide=warn['invalid'])
 
     if grid.has_previous_estimate() and np.any(grid.occ):
-        if 0:
-            R_aligned, c = grid.nearest(grid.previous_estimate['R_correct'],
-                                        R_aligned)
-            occ = occvac.occ = grid.apply_correction(occ, *c)
-            vac = occvac.vac = grid.apply_correction(vac, *c)
+        try:
+            c,err = hashalign.find_best_alignment(grid.occ, grid.vac,
+                                                  occ, vac,
+                                                  R_aligned,
+                                                  grid.previous_estimate['R_correct'])
+        except ValueError:
+            #print 'could not align previous'
+            return None
 
-            # Align the new voxels with the previous estimate
-            R_correct, occ, vac = grid.align_with_previous(R_aligned, occ, vac)
-        else:
-            try:
-                c,err = hashalign.find_best_alignment(grid.occ, grid.vac,
-                                                      occ, vac,
-                                                      R_aligned,
-                                           grid.previous_estimate['R_correct'])
-            except ValueError:
-                return
-
-            R_correct = hashalign.correction2modelmat(R_aligned, *c)
-            occ = occvac.occ = hashalign.apply_correction(occ, *c)
-            vac = occvac.vac = hashalign.apply_correction(vac, *c)
+        R_correct = hashalign.correction2modelmat(R_aligned, *c)
+        occ = occvac.occ = hashalign.apply_correction(occ, *c)
+        vac = occvac.vac = hashalign.apply_correction(vac, *c)
 
     elif np.any(occ):
         # If this is the first estimate (bootstrap) then try to center the grid
         if np.any(grid.occ):
+            # Initialize with ground truth
             try:
                 c,err = hashalign.find_best_alignment(grid.occ, grid.vac,
                                                       occ, vac, R_aligned)
                 R_correct = hashalign.correction2modelmat(R_aligned, *c)
+                occ = occvac.occ = hashalign.apply_correction(occ, *c)
+                vac = occvac.vac = hashalign.apply_correction(vac, *c)
             except ValueError:
+                #print 'could not align bootstrap'
                 return None
         else:
             R_correct, occ, vac = grid.center(R_aligned, occ, vac)
+            occvac.occ, occvac.vac = occ, vac
     else:
+        #print 'nothing happened'
         return
 
     def matrix_slerp(matA, matB, alpha=0.6):
