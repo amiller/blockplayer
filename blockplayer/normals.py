@@ -11,7 +11,6 @@ import config
 
 import os
 import ctypes
-print __file__
 speedup = np.ctypeslib.load_library('speedup_ctypes.so',
                                     os.path.dirname(__file__))
 
