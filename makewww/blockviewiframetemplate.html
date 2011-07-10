@@ -1,0 +1,38 @@
+<!DOCTYPE HTML>
+<html lang="en">
+  <head>
+    <title>Voxels</title>
+    <meta http-equiv="cache-control" content="no-cache">
+    <meta charset="utf-8">
+    <style type="text/css">
+      body {
+        font-family: Monospace;
+        font-size: 12px;
+        background-color: #f0f0f0;
+        margin: 0px;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <script type="text/javascript" src="ThreeCanvas.js"></script>
+    <script type="text/javascript" src="Plane.js"></script>
+    <script type="text/javascript" src="Cube.js"></script>
+    <script type="text/javascript">
+      // Correct block
+      var grid_green = {{ green|default:"[]" }};
+      // Correct add
+      var grid_blue = {{ blue|default:"[]" }};
+      // Correct removal
+      var grid_purple = {{ purple|default:"[]" }};
+      // Incorrect removal
+      var grid_red = {{ red|default:"[]" }};
+      // Incorrect add
+      var grid_yellow = {{ yellow|default:"[]" }};
+      
+      // Message to display at top
+      var msg = "{{ msg }}";
+    </script>
+    <script type="text/javascript" src="blocksetup.js"></script>
+  </body>
+</html>
