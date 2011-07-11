@@ -25,7 +25,6 @@ def translated_rotated(R_correct, occ):
 
     # Apply a translation
     bx,_,bz = np.round(np.linalg.inv(R_correct)[:3,3]/config.LW).astype('i')
-    print bx, bz
 
     return hashalign.apply_correction(occ, bx, 0, bz, -angle_90)
 
