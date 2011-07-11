@@ -2,7 +2,7 @@ import struct
 import random
 import os.path
 from glob import glob
-from threading import Timer
+from threading import Timer, Thread
 
 import zmq
 import numpy as np
@@ -13,7 +13,7 @@ from blockplayer import config
 from blockplayer import blockcraft
 from blockplayer import blockdraw
 from blockplayer import dataset
-from blockplayer.visuals.blockwindow import BlockWindow
+from blockplayer import glxcontext
 import opennpy
 
 FOR_REAL = True
@@ -94,12 +94,26 @@ class Material:
 
 
 class Board:
-    BOARD_LENGTH = 32;
+    BOARD_LENGTH = 40;
     BOARD_WIDTH = 12;
     BOARD_HEIGHT = 9;
     
     PLAY_WIDTH = 9
     PLAY_HEIGHT = BOARD_HEIGHT
+    
+    # The tracks on the board that help the player determine where to place
+    # their blocks. Length should be PLAY_WIDTH
+    TRACKS = [
+        DyeColor.ORANGE,
+        DyeColor.MAGENTA,
+        DyeColor.SILVER,
+        DyeColor.CYAN,
+        DyeColor.WHITE,
+        DyeColor.PINK,
+        DyeColor.BROWN,
+        DyeColor.LIME,
+        DyeColor.GRAY
+    ]
     
     def __init__(self):
         self.wall_offset = 0
@@ -162,8 +176,8 @@ class Board:
         for x in xrange(2, self.BOARD_LENGTH+1):
             # The grass and purple border add remove 2 from each side
             for z in xrange(2, self.BOARD_WIDTH-2+1):
-                self.set_wool(x, -1, z, DyeColor.BLACK)
-                self.set_wool(z, -1, x, DyeColor.BLACK)
+                self.set_wool(x, -1, z, Board.TRACKS[z-2])
+                self.set_wool(z, -1, x, Board.TRACKS[z-2])
         
         # The blue playing area marker
         for x in xrange(2, self.BOARD_WIDTH-2+1):
@@ -180,10 +194,10 @@ class Board:
         self.draw_gamewalls(0, True)
         
         # Set the bounds
-        self.add_bound(-1, -1, -1, self.BOARD_LENGTH+2, self.BOARD_WIDTH+2,
-            self.BOARD_HEIGHT+1)
-        self.add_bound(-1, -1, -1, self.BOARD_WIDTH+2, self.BOARD_LENGTH+2,
-            self.BOARD_HEIGHT+1)
+        self.add_bound(0, -1, 0, self.BOARD_LENGTH, self.BOARD_WIDTH,
+            self.BOARD_HEIGHT+2)
+        self.add_bound(0, -1, 0, self.BOARD_WIDTH, self.BOARD_LENGTH,
+            self.BOARD_HEIGHT+2)
         
         # Flush the command queue
         send_globalqueue()
@@ -201,32 +215,28 @@ class Board:
                     # z-side (right from origin) wall
                     self.set_block(x, y, self.BOARD_LENGTH-self.wall_offset, Material.AIR)
         
-        # Don't intersect the walls if they're in the playing area
-        intersect = 0
-        #if offset > self.BOARD_LENGTH-self.BOARD_WIDTH:
-        #    intersect = offset-(self.BOARD_LENGTH-self.BOARD_WIDTH)-1
-        
-        for x in xrange(1, self.BOARD_WIDTH-1+1-intersect):
+        # Setup blank yellow walls
+        for x in xrange(1, self.BOARD_WIDTH-1+1):
             for y in xrange(self.BOARD_HEIGHT+1):
                 # x-side (left from origin) wall
                 self.set_wool(self.BOARD_LENGTH-offset, y, x, DyeColor.YELLOW)
                 
                 # z-side (right from origin) wall
                 self.set_wool(x, y, self.BOARD_LENGTH-offset, DyeColor.YELLOW)
-                #    self.set_block(x, y, self.BOARD_LENGTH-offset, Material.AIR)
         
         # Clear away any design
-        if self.x_design is not None:
-            for x,row in enumerate(self.x_design):
-                for y,isset in enumerate(row):
-                    if isset:
-                        self.set_block(self.BOARD_LENGTH-offset, y, x+2, Material.AIR)
-        
-        if self.z_design is not None:
-            for x,row in enumerate(self.z_design):
-                for y,isset in enumerate(row):
-                    if isset:
-                        self.set_block(x+2, y, self.BOARD_LENGTH-offset, Material.AIR)
+        if not blank:
+            if self.x_design is not None:
+                for x,row in enumerate(self.x_design):
+                    for y,isset in enumerate(row):
+                        if isset:
+                            self.set_block(self.BOARD_LENGTH-offset, y, x+2, Material.AIR)
+            
+            if self.z_design is not None:
+                for x,row in enumerate(self.z_design):
+                    for y,isset in enumerate(row):
+                        if isset:
+                            self.set_block(x+2, y, self.BOARD_LENGTH-offset, Material.AIR)
         
         self.wall_offset = offset
         send_globalqueue()
@@ -262,20 +272,36 @@ class Board:
         self.x_design = []
         self.z_design = []
     
-    def update_blocks(self, blocks):
+    def update_blocks(self, blocks, remove=True):
         """Draw the blocks in the playing area. The blocks array must be of size
-        PLAY_WIDTH x PLAY_WIDTH x PLAY_HEIGHT"""
+        PLAY_WIDTH x PLAY_WIDTH x PLAY_HEIGHT. If remove is True, it clears
+        any block with a False value in `blocks`"""
+        if blocks is None:
+            raise HitBException("Invalid blocks array passed to update function. Cannot update blocks.")
         
+        if blocks.shape != (Board.PLAY_WIDTH, Board.PLAY_HEIGHT, Board.PLAY_WIDTH):
+            raise HitBException("Blocks array has wrong dimensions. Cannot update blocks.")
+        
+        for x in xrange(Board.PLAY_WIDTH):
+            for y in xrange(Board.PLAY_HEIGHT):
+                for z in xrange(Board.PLAY_WIDTH):
+                    if blocks[x,y,z]:
+                        self.set_wool(x+2, y, z+2, DyeColor.LIGHT_BLUE)
+                    elif remove:
+                        self.set_block(x+2, y, z+2, Material.AIR)
+        
+        send_globalqueue()
 
 
 class Game:
+    STATE_QUIT = -1
     STATE_NOTPLAYING = 0
     STATE_LOADDESIGN = 1
     STATE_COUNTDOWN = 2
     STATE_MOVEWALL = 3
     STATE_CHECKWALL = 4
     
-    def __init__(self, clear_bounds=True):
+    def __init__(self, clear_bounds=True, block_thread=None):
         self.state = Game.STATE_NOTPLAYING
         self.countdown = 5
         self.round = 0
@@ -284,7 +310,10 @@ class Game:
         
         self.block_loop_quit = False
         self.blocks = None
-        self.window = None
+        if block_thread is None:
+            self.block_thread = Thread(target=self.block_setup)
+        else:
+            self.block_thread = block_thread
         
         self.board = Board()
         
@@ -300,6 +329,14 @@ class Game:
         if os.path.exists(self.designs_dir):
             self.designs = glob(self.designs_dir + '/*')
             random.shuffle(self.designs)
+        
+        # Initialize blockplayer
+        self.block_thread.start()
+    
+    def quit(self):
+        """Stops game processing"""
+        self.state = Game.STATE_QUIT
+        self.block_loop_quit = True
     
     def send_message(self, message):
         add_queue(build_message(message))
@@ -321,8 +358,9 @@ class Game:
     
     def block_setup(self):
         """Initialize blockplayer stuff"""
-        self.window = BlockWindow(title='demo_grid', size=(640,480))
-        self.window.Move((0,0))
+        glxcontext.init()
+        print "GL Version String: ",
+        glxcontext.printinfo()
         
         main.initialize()
         
@@ -331,48 +369,44 @@ class Game:
         dataset.setup_opencl()
         
         self.block_loop_quit = False
-        Timer(0.01, self.block_loop).start()
+        self.block_loop()
     
     def block_slice(self, blocks):
         """Slices `blocks` to fit the playing area."""
-        l,h,w = blocks.size
-        return (blocks[l-Board.PLAY_WIDTH/2:l+Board.PLAY_WIDTH/2]
-            [:Board.PLAY_HEIGHT][w-Board.PLAY_WIDTH/2:w+Board.PLAY_WIDTH/2])
+        l,h,w = blocks.shape
+        return (blocks[l/2-int(ceil(float(Board.PLAY_WIDTH)/2)):l/2+Board.PLAY_WIDTH/2,
+            :Board.PLAY_HEIGHT,w/2-int(ceil(float(Board.PLAY_WIDTH)/2)):w/2+Board.PLAY_WIDTH/2])
+    
+    def block_once(self):
+        """Process the next blockplayer frame"""
+        opennpy.sync_update()
+        depth,_ = opennpy.sync_get_depth()
+        rgb,_ = opennpy.sync_get_video()
+        
+        main.update_frame(depth, rgb)
+        
+        # Update the blocks in the playing area
+        if self.state != Game.STATE_CHECKWALL:
+            self.blocks = blockcraft.translated_rotated(main.R_correct, main.grid.occ)
+            self.blocks = self.block_slice(self.blocks)
+            self.board.update_blocks(self.blocks)
     
     def block_loop(self):
-        """Process the next blockplayer frame"""
+        """Loops the blockplayer frame processing function"""
         while not self.block_loop_quit:
-            opennpy.sync_update()
-            depth,_ = opennpy.sync_get_depth()
-            rgb,_ = opennpy.sync_get_video()
-            
-            main.update_frame(depth, rgb)
-            
-            blockdraw.clear()
-            if hasattr(stencil, 'RGB'):
-                blockdraw.show_grid('occ', main.grid.occ, color=main.grid.color)
-            else:
-                blockdraw.show_grid('occ', main.grid.occ, color=np.array([1,0.6,0.6,1]))
-            
-            self.window.clearcolor = [0,0,0,0]
-            self.window.flag_drawgrid = True
-            
-            if hasattr('R_correct', main):
-                self.window.modelmat = main.R_display
-            
-            self.window.Refresh()
-            if self.state != Game.STATE_CHECKWALL:
-                self.blocks = blockcraft.translated_rotated(main.R_correct, main.grid.occ)
-                self.board.update_blocks(self.blocks)
+            self.block_once()
     
     def start(self):
+        """Begins the game."""
+        if self.state == Game.STATE_QUIT:
+            return
+        
         if self.state == Game.STATE_NOTPLAYING:
             self.countdown = 5
             self.round += 1
             self.wall_offset = 0
             self.board.clear_design()
             
-            self.block_setup()
             self.state = Game.STATE_LOADDESIGN
         
         if self.state == Game.STATE_LOADDESIGN:
@@ -398,9 +432,13 @@ class Game:
                 Timer(0.5, self.start).start()
         
         if self.state == Game.STATE_CHECKWALL:
+            self.board.update_blocks(self.blocks, remove=False)
             if self.wall_offset >= Board.BOARD_LENGTH - 2:
                 # WIN
-                pass
+                
+                # Restart
+                self.state = Game.STATE_NOTPLAYING
+                self.start()
             else:
                 self.wall_offset += 1
                 self.board.draw_gamewalls(self.wall_offset)
@@ -408,6 +446,11 @@ class Game:
 
 
 if __name__ == '__main__':
+    # Reuse the blockplayer thread to appease OpenGL
+    block_thread = None
+    if 'game' in globals() and isinstance(game, Game):
+        block_thread = game.block_thread
+    
     game = Game()
     game.start()
 
