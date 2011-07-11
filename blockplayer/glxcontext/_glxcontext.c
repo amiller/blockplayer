@@ -1,5 +1,5 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include<stdio.h>
+#include<stdlib.h>
 #include<X11/X.h>
 #include<X11/Xlib.h>
 #include<GL/gl.h>
@@ -52,6 +52,11 @@ void glx_makecurrent(){
 
 void glx_printinfo(){
    printf("%s\n", glGetString(GL_VERSION));
+}
+
+void glx_destroy() {
+    XDestroyWindow(dpy, win);
+    XCloseDisplay(dpy);
 }
 
 
