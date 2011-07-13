@@ -433,6 +433,9 @@ class Game:
     # The time between rounds
     AFTER_ROUND_TIME = 3
     
+    WIN_POINTS = 10
+    LOSE_POINTS = 0
+    
     def __init__(self, clear_bounds=True, tracks=True):
         self.state = Game.STATE_NOTPLAYING
         self.countdown = 5
@@ -560,6 +563,10 @@ class Game:
             
             self.update_blocks = True
             self.board.clear_design()
+            
+            self.x_match = None
+            self.z_match = None
+            
             self.state = Game.STATE_LOADDESIGN
         
         if self.state == Game.STATE_LOADDESIGN:
@@ -590,18 +597,10 @@ class Game:
             
             # Match the blocks to the designs
             x_match,z_match = self.board.match_blocks(self.blocks)
-            if self.x_match is None: self.x_match = x_match
-            if self.z_match is None: self.z_match = z_match
-            
-            # TODO: save the matches and update them every wall move, so we can
-            #       check if the designs were satisfied when the wall meets end
-            #############################
-            self.x_match = x_match
-            self.z_match = z_match
             
             # Check for collisions
             collide = False
-            for matches in (self.x_match, self.z_match):
+            for matches in (x_match, z_match):
                 for x,col in enumerate(matches):
                     for y,match in enumerate(col):
                         if match == Board.MATCH_COLLIDE:
@@ -618,12 +617,12 @@ class Game:
                         for z in xrange(Board.PLAY_WIDTH):
                             if self.blocks[x,y,z]:
                                 if x == self.board.wall_abs-Board.BOARD_BORDER \
-                                    and self.x_match[x][y] == Board.MATCH_COLLIDE:
+                                    and x_match[x][y] == Board.MATCH_COLLIDE:
                                     self.board.set_wool(x+Board.BOARD_BORDER, y,
                                          z+Board.BOARD_BORDER, DyeColor.RED)
                                 
                                 elif z == self.board.wall_abs-Board.BOARD_BORDER \
-                                    and self.z_match[x][y] == Board.MATCH_COLLIDE:
+                                    and z_match[x][y] == Board.MATCH_COLLIDE:
                                     self.board.set_wool(x+Board.BOARD_BORDER, y,
                                          z+Board.BOARD_BORDER, DyeColor.RED)
                                 else:
@@ -639,11 +638,41 @@ class Game:
                 self.send_message("Your blocks collided with the wall.")
                 self.send_message("You lost this round :(")
                 
+                self.score += Game.LOSE_POINTS
+                
                 self.state = Game.STATE_ENDROUND
             else:
+                if self.x_match is None: self.x_match = x_match
+                if self.z_match is None: self.z_match = z_match
+                
+                for x in xrange(Board.PLAY_WIDTH):
+                    for y in xrange(Board.PLAY_HEIGHT):
+                        if self.x_match[x][y] == Board.MATCH_EMPTY \
+                            and x_match[x][y] == Board.MATCH_MATCH:
+                            self.x_match[x][y] = Board.MATCH_MATCH
+                        
+                        if self.z_match[x][y] == Board.MATCH_EMPTY \
+                            and z_match[x][y] == Board.MATCH_MATCH:
+                            self.z_match[x][y] = Board.MATCH_MATCH
+                
                 if self.board.wall_abs - Board.BOARD_BORDER <= 0:
-                    # Check that both designs were satisfied
-                    # TODO
+                    satisfied = True
+                    for x in xrange(Board.PLAY_WIDTH):
+                        if not satisfied:
+                            break
+                        for y in xrange(Board.PLAY_HEIGHT):
+                            if self.x_match[x][y] == Board.MATCH_EMPTY or \
+                                self.z_match[x][y] == Board.MATCH_EMPTY:
+                                satisfied = False
+                                break
+                    
+                    if satisfied:
+                        self.send_message("You won this round!")
+                        self.score += Game.WIN_POINTS
+                    else:
+                        self.send_message("Your blocks did not satisfy both designs.")
+                        self.send_message("You lost this round :(")
+                        self.score += Game.LOSE_POINTS
                     
                     self.state = Game.STATE_ENDROUND
                 else:
