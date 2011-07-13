@@ -1,8 +1,9 @@
 import struct
 import random
 import os.path
+from math import ceil
 from glob import glob
-from threading import Timer, Thread
+from threading import Timer, Thread, Lock
 
 import zmq
 import numpy as np
@@ -13,12 +14,10 @@ from blockplayer import config
 from blockplayer import blockcraft
 from blockplayer import blockdraw
 from blockplayer import dataset
-from blockplayer import glxcontext
+import glxcontext
 import opennpy
 
 FOR_REAL = True
-# The maximum number of commands in the queue before it gets sent
-MAX_COMMANDS = 128
 
 class HitBException(Exception):
     pass
@@ -27,10 +26,12 @@ class HitBException(Exception):
 if 'socket' in globals():
     socket.close()
 
-context = zmq.Context()
+if 'context' not in globals():
+    context = zmq.Context()
 socket = context.socket(zmq.PAIR)
 socket.connect('tcp://*:8134')
 
+cmd_lock = Lock()
 cmd_queue = ''
 commands = 0
 
@@ -49,23 +50,24 @@ def build_addbounds(x, y, z, length, width, height):
 def build_clearbounds():
     return 'c'
 
-def send_queue(queue, num_commands):
-    socket.send(struct.pack('>i', num_commands) + queue)
-
 def send_globalqueue():
     global cmd_queue, commands
-    send_queue(cmd_queue, commands)
+    
+    cmd_lock.acquire()
+    socket.send(struct.pack('>i', commands) + cmd_queue)
     
     cmd_queue = ''
     commands = 0
+    cmd_lock.release()
 
 def add_queue(command):
     global cmd_queue, commands
+    
+    cmd_lock.acquire()
     cmd_queue += command
     commands += 1
-    
-    if commands >= MAX_COMMANDS:
-        send_globalqueue()
+    cmd_lock.release()
+
 
 class DyeColor:
     WHITE = 0x0
@@ -94,15 +96,25 @@ class Material:
 
 
 class Board:
-    BOARD_LENGTH = 40
-    BOARD_WIDTH = 12
-    BOARD_HEIGHT = 9
-    # The width of the border from to the playing area
+    PLAY_WIDTH = 9
+    PLAY_HEIGHT = 9
+    
+    # The width of the border from x=0 to the playing area
     # This is made up of the grass and purple borders
     BOARD_BORDER = 2
     
-    PLAY_WIDTH = 9
-    PLAY_HEIGHT = BOARD_HEIGHT
+    BOARD_LENGTH = 40
+    BOARD_WIDTH = 12
+    BOARD_HEIGHT = PLAY_HEIGHT
+    
+    # No block present, no design present
+    MATCH_BLANK = -1
+    # Block present, design present
+    MATCH_MATCH = 0
+    # No block present, design present
+    MATCH_EMPTY = 1
+    # Block present, no design present
+    MATCH_COLLIDE = 2
     
     # The tracks on the board that help the player determine where to place
     # their blocks. Length should be PLAY_WIDTH
@@ -177,19 +189,21 @@ class Board:
         # Add a block for the player to jump on to get over the fences
         self.set_wool(1, 0, 1, DyeColor.PURPLE)
         
-        # The black playing board
-        for x in xrange(2, Board.BOARD_LENGTH+1):
-            # The grass and purple border add remove 2 from each side
-            for z in xrange(2, Board.BOARD_WIDTH-Board.BOARD_BORDER+1):
+        # The playing board
+        for x in xrange(Board.BOARD_BORDER, Board.BOARD_LENGTH+1):
+            for z in xrange(Board.BOARD_BORDER, Board.BOARD_WIDTH-Board.BOARD_BORDER):
                 self.set_wool(x, -1, z, Board.TRACKS[z-Board.BOARD_BORDER]
                     if self.tracks else DyeColor.BLACK)
                 self.set_wool(z, -1, x, Board.TRACKS[z-Board.BOARD_BORDER]
                     if self.tracks else DyeColor.BLACK)
         
-        # The blue playing area marker
-        for x in xrange(Board.BOARD_BORDER, Board.BOARD_WIDTH-Board.BOARD_BORDER+1):
-            self.set_wool(x, -1, Board.BOARD_WIDTH-1, DyeColor.BLUE)
-            self.set_wool(Board.BOARD_WIDTH-1, -1, x, DyeColor.BLUE)
+        # The blue playing area square marker
+        for x in xrange(Board.BOARD_BORDER, Board.PLAY_WIDTH+Board.BOARD_BORDER+1):
+            self.set_wool(x, -1, Board.PLAY_WIDTH+Board.BOARD_BORDER, DyeColor.BLUE)
+            self.set_wool(Board.PLAY_WIDTH+Board.BOARD_BORDER, -1, x, DyeColor.BLUE)
+            
+            self.set_wool(x, -1, Board.BOARD_BORDER-1, DyeColor.BLUE)
+            self.set_wool(Board.BOARD_BORDER-1, -1, x, DyeColor.BLUE)
         
         # The glass ceiling
         for x in xrange(Board.BOARD_LENGTH+1):
@@ -210,21 +224,36 @@ class Board:
         # Flush the command queue
         send_globalqueue()
     
-    def draw_gamewalls(self, offset=0, blank=False):
+    def draw_gamewalls(self, offset=0, blank=False, blocks=None):
         """Draws the walls where the designs appear at an offset from the end of
-        the board. If blank is True, the designs are not drawn."""
+        the board. If blank is True, the designs are not drawn. If blocks is not
+        None, it should be blocks in the playing area not to clear."""
         
         # Clear the old walls
         if offset != self.wall_offset:
             # Starts at 1 so it draws the walls over the purple borders
             for x in xrange(1, Board.BOARD_WIDTH-1+1):
                 for y in xrange(Board.BOARD_HEIGHT+1):
+                    clear_x = True
+                    clear_z = True
+                    if blocks is not None:
+                        if self.wall_abs-Board.BOARD_BORDER < Board.PLAY_WIDTH and \
+                            (0 <= x - Board.BOARD_BORDER < Board.PLAY_WIDTH 
+                            and y < Board.PLAY_HEIGHT):
+                            if blocks[self.wall_abs-Board.BOARD_BORDER][y][x-Board.BOARD_BORDER]:
+                                clear_x = False
+                            if blocks[x-Board.BOARD_BORDER][y][self.wall_abs-Board.BOARD_BORDER]:
+                                clear_z = False
+                    
                     # x-side (left from origin) wall
-                    self.set_block(Board.BOARD_LENGTH-self.wall_offset, y, x,
-                        Material.AIR)
+                    if clear_x:
+                        self.set_block(Board.BOARD_LENGTH-self.wall_offset, y,
+                            x, Material.AIR)
+                    
                     # z-side (right from origin) wall
-                    self.set_block(x, y, Board.BOARD_LENGTH-self.wall_offset,
-                        Material.AIR)
+                    if clear_z:
+                        self.set_block(x, y, Board.BOARD_LENGTH-self.wall_offset,
+                            Material.AIR)
         
         # Absolute position of wall from origin
         wall_abs = Board.BOARD_LENGTH-offset
@@ -241,15 +270,15 @@ class Board:
         # Clear away any design
         if not blank:
             if self.x_design is not None:
-                for x,row in enumerate(self.x_design):
-                    for y,isset in enumerate(row):
+                for x,col in enumerate(self.x_design):
+                    for y,isset in enumerate(col):
                         if isset:
                             self.set_block(wall_abs, y, x+Board.BOARD_BORDER,
                                 Material.AIR)
             
             if self.z_design is not None:
-                for x,row in enumerate(self.z_design):
-                    for y,isset in enumerate(row):
+                for x,col in enumerate(self.z_design):
+                    for y,isset in enumerate(col):
                         if isset:
                             self.set_block(x+Board.BOARD_BORDER, y, wall_abs,
                                 Material.AIR)
@@ -262,38 +291,47 @@ class Board:
     def load_design(self, path):
         """Load in the x and z wall designs from the file at `path`"""
         with open(path, 'r') as fp:
-            lines = fp.readlines(self.PLAY_WIDTH)
+            lines = fp.readlines(Board.PLAY_WIDTH)
             # Two board designs separated by a blank line
-            if len(lines) != self.PLAY_HEIGHT*2 + 1:
+            if len(lines) != Board.PLAY_HEIGHT*2 + 1:
                 raise HitBException("Cutout design file \"%s\" incorrectly formatted." % path)
             
             # Create the empty design lists
             self.x_design = []
             self.z_design = []
-            for x in xrange(self.PLAY_WIDTH):
-                self.x_design.append([False]*self.PLAY_HEIGHT)
-                self.z_design.append([False]*self.PLAY_HEIGHT)
+            for x in xrange(Board.PLAY_WIDTH):
+                self.x_design.append([False]*Board.PLAY_HEIGHT)
+                self.z_design.append([False]*Board.PLAY_HEIGHT)
             
             # Fill the x-side design
-            for y,line in enumerate(lines[:self.PLAY_HEIGHT]):
+            for y,line in enumerate(lines[:Board.PLAY_HEIGHT]):
                 for x,c in enumerate(line):
                     if c == '\n': break
                     if x >= Board.PLAY_WIDTH: break
-                    self.x_design[x][self.PLAY_HEIGHT-y-1] = (c == '#')
+                    self.x_design[x][Board.PLAY_HEIGHT-y-1] = (c == '#')
             
             # Fill the z-side design
-            for y,line in enumerate(lines[self.PLAY_HEIGHT+1:]):
+            for y,line in enumerate(lines[Board.PLAY_HEIGHT+1:]):
                 for x,c in enumerate(line):
                     if c == '\n': break
                     if x >= Board.PLAY_WIDTH: break
-                    self.z_design[x][self.PLAY_HEIGHT-y-1] = (c == '#')
+                    self.z_design[x][Board.PLAY_HEIGHT-y-1] = (c == '#')
     
     def clear_design(self):
         """Clears both wall designs"""
         self.x_design = []
         self.z_design = []
     
-    def update_blocks(self, blocks, remove=True):
+    def clear_playarea(self):
+        """Clears the entire playing area"""
+        for x in xrange(Board.PLAY_WIDTH):
+            for y in xrange(Board.PLAY_HEIGHT):
+                for z in xrange(Board.PLAY_WIDTH):
+                    self.set_block(x+Board.BOARD_BORDER, y,
+                        z+Board.BOARD_BORDER, Material.AIR)
+        send_globalqueue()
+    
+    def update_blocks(self, blocks, remove=True, glass=False):
         """\
         Draw the blocks in the playing area. The blocks array must be of size
         PLAY_WIDTH x PLAY_WIDTH x PLAY_HEIGHT. If remove is True, it clears
@@ -302,7 +340,6 @@ class Board:
         
         if blocks is None:
             raise HitBException("Invalid blocks array passed to update function. Cannot update blocks.")
-        
         if blocks.shape != (Board.PLAY_WIDTH, Board.PLAY_HEIGHT, Board.PLAY_WIDTH):
             raise HitBException("Blocks array has wrong dimensions. Cannot update blocks.")
         
@@ -310,17 +347,74 @@ class Board:
             for y in xrange(Board.PLAY_HEIGHT):
                 for z in xrange(Board.PLAY_WIDTH):
                     if blocks[x,y,z]:
-                        self.set_wool(x+Board.BOARD_BORDER, y,
-                            z+Board.BOARD_BORDER, DyeColor.LIGHT_BLUE)
+                        if not glass:
+                            self.set_wool(x+Board.BOARD_BORDER, y,
+                                z+Board.BOARD_BORDER, DyeColor.LIGHT_BLUE)
+                        else:
+                            self.set_block(x+Board.BOARD_BORDER, y,
+                                z+Board.BOARD_BORDER, Material.GLASS)
                     elif remove:
                         self.set_block(x+Board.BOARD_BORDER, y,
                             z+Board.BOARD_BORDER, Material.AIR)
         
         send_globalqueue()
     
+    def _match_block(self, blocks, design, x, y, bx, by, bz):
+        """Match a single block and return a Board.MATCH constant"""
+        # No design present
+        if not design[y][x]:
+            # Block present
+            if blocks[bx][by][bz]:
+                return Board.MATCH_COLLIDE
+            # No block present
+            else:
+                return Board.MATCH_BLANK
+        
+        # Design present
+        else:
+            # Block present
+            if blocks[bx][by][bz]:
+                return Board.MATCH_MATCH
+            # No block present
+            else:
+                return Board.MATCH_EMPTY
+                
+    
     def match_blocks(self, blocks, wall_abs=None):
-        """Matches blocks to the loaded design on both walls. `wall_abs` should
-        be an absolute offset from the origin to check"""
+        """\
+        Matches blocks to the loaded design on both walls. `wall_abs` should
+        be an absolute offset from the origin to check. Returns a 2-tuple
+        containing 2d lists representing the blocks matched. For each block,
+        a value of Board.MATCH constant is assigned.
+        """
+        
+        if blocks is None:
+            return None
+        if blocks.shape != (Board.PLAY_WIDTH, Board.PLAY_HEIGHT, Board.PLAY_WIDTH):
+            return None
+        
+        if wall_abs is None:
+            wall_abs = self.wall_abs
+        
+        # Correct abs offset for the border
+        blocks_idx = wall_abs - Board.BOARD_BORDER
+        
+        # Populate the empty match matrices
+        x_match = []
+        z_match = []
+        for x in xrange(Board.PLAY_WIDTH):
+            x_match.append([Board.MATCH_BLANK]*Board.PLAY_HEIGHT)
+            z_match.append([Board.MATCH_BLANK]*Board.PLAY_HEIGHT)
+        
+        for x in xrange(Board.PLAY_WIDTH):
+            for y in xrange(Board.PLAY_HEIGHT):
+                # This is very fragile. It works, so I won't touch it.
+                x_match[y][x] = self._match_block(blocks, self.x_design, x, y,
+                    blocks_idx, x, y)
+                z_match[x][y] = self._match_block(blocks, self.z_design,
+                    y, x, x, y, blocks_idx)
+        
+        return (x_match, z_match)
 
 
 class Game:
@@ -330,30 +424,35 @@ class Game:
     STATE_COUNTDOWN = 2
     STATE_MOVEWALL = 3
     STATE_CHECKWALL = 4
+    STATE_ENDROUND = 5
     
+    # The rate at which the wall moves
     WALL_FPS = 2
     WALL_TICK = 1.0/WALL_FPS
     
-    def __init__(self, clear_bounds=True, block_thread=None, tracks=True):
+    # The time between rounds
+    AFTER_ROUND_TIME = 3
+    
+    def __init__(self, clear_bounds=True, tracks=True):
         self.state = Game.STATE_NOTPLAYING
         self.countdown = 5
         self.round = 0
         self.score = 0
         self.wall_offset = 0
         
+        self.x_match = None
+        self.z_match = None
+        
+        self.block_initialized = False
+        self.update_blocks = True
         self.block_loop_quit = False
         self.blocks = None
-        if block_thread is None:
-            self.block_thread = Thread(target=self.block_setup)
-        else:
-            self.block_thread = block_thread
+        self.block_thread = Thread(target=self.block_setup)
         
-        Board.BOARD = Board(tracks=tracks)
-        
+        self.board = Board(tracks=tracks)
         if clear_bounds:
-            Board.BOARD.clear_bounds()
-        
-        Board.BOARD.setup_gameboard()
+            self.board.clear_bounds()
+        self.board.setup_gameboard()
         
         # Find all the designs in the cutouts directory
         self.designs = []
@@ -386,19 +485,21 @@ class Game:
             self.used_designs = []
         
         design = self.designs.pop()
-        Board.BOARD.load_design(design)
+        self.board.load_design(design)
         self.used_designs.append(design)
     
     def block_setup(self):
         """Initialize blockplayer stuff"""
-        glxcontext.init()
+        glxcontext.makecurrent()
         main.initialize()
         
         config.load('data/newest_calibration')
         opennpy.align_depth_to_rgb()
         dataset.setup_opencl()
         
+        self.blocks = None
         self.block_loop_quit = False
+        self.block_initialized = True
         self.block_loop()
     
     def block_slice(self, blocks):
@@ -416,18 +517,39 @@ class Game:
         main.update_frame(depth, rgb)
         
         # Update the blocks in the playing area
-        if self.state != Game.STATE_CHECKWALL:
+        if self.state < Game.STATE_CHECKWALL and self.update_blocks:
             self.blocks = blockcraft.translated_rotated(main.R_correct, main.grid.occ)
             self.blocks = self.block_slice(self.blocks)
-            Board.BOARD.update_blocks(self.blocks)
+            self.board.update_blocks(self.blocks,
+                remove=self.board.wall_abs-Board.BOARD_BORDER > Board.PLAY_WIDTH)
     
     def block_loop(self):
         """Loops the blockplayer frame processing function"""
-        while not self.block_loop_quit:
-            self.block_once()
+        try:
+            while not self.block_loop_quit:
+                self.block_once()
+            glxcontext.destroy()
+        except KeyboardInterrupt:
+            self.quit()
+    
+    def print_score(self):
+        """Display the player's score"""
+        self.send_message("Score: %d" % self.score)
     
     def start(self):
+        """Begins the game, watching for KeyboardInterrupts"""
+        try:
+            self._start()
+        except KeyboardInterrupt:
+            self.quit()
+    
+    def _start(self):
         """Begins the game."""
+        
+        # Block until blockplayer is initialized
+        while not self.block_initialized:
+            pass
+        
         if self.state == Game.STATE_QUIT:
             return
         
@@ -435,13 +557,14 @@ class Game:
             self.countdown = 5
             self.round += 1
             self.wall_offset = 0
-            Board.BOARD.clear_design()
             
+            self.update_blocks = True
+            self.board.clear_design()
             self.state = Game.STATE_LOADDESIGN
         
         if self.state == Game.STATE_LOADDESIGN:
             self.load_design()
-            Board.BOARD.draw_gamewalls()
+            self.board.draw_gamewalls()
             self.state = Game.STATE_COUNTDOWN
         
         if self.state == Game.STATE_COUNTDOWN:
@@ -454,25 +577,124 @@ class Game:
                 Timer(1.0, self.start).start()
        
         if self.state == Game.STATE_MOVEWALL:
-            if self.wall_offset >= Board.BOARD_LENGTH - Board.PLAY_WIDTH - Board.BOARD_BORDER:
+            if self.board.wall_abs - Board.BOARD_BORDER < Board.PLAY_WIDTH:
                 self.state = Game.STATE_CHECKWALL
+                self.update_blocks = False
             else:
                 self.wall_offset += 1
-                Board.BOARD.draw_gamewalls(self.wall_offset)
+                self.board.draw_gamewalls(self.wall_offset)
                 Timer(Game.WALL_TICK, self.start).start()
         
         if self.state == Game.STATE_CHECKWALL:
-            Board.BOARD.update_blocks(self.blocks, remove=False)
-            if self.wall_offset >= Board.BOARD_LENGTH - Board.BOARD_BORDER:
-                # WIN
+            self.board.update_blocks(self.blocks, remove=False)
+            
+            # Match the blocks to the designs
+            x_match,z_match = self.board.match_blocks(self.blocks)
+            if self.x_match is None: self.x_match = x_match
+            if self.z_match is None: self.z_match = z_match
+            
+            # TODO: save the matches and update them every wall move, so we can
+            #       check if the designs were satisfied when the wall meets end
+            #############################
+            self.x_match = x_match
+            self.z_match = z_match
+            
+            # Check for collisions
+            collide = False
+            for matches in (self.x_match, self.z_match):
+                for x,col in enumerate(matches):
+                    for y,match in enumerate(col):
+                        if match == Board.MATCH_COLLIDE:
+                            collide = True
+                            break
+            
+            if collide:
+                # Collision detected. Set the colliding blocks to red wool, and
+                # the rest of the blocks to glass for visibility
+                self.board.update_blocks(self.blocks, remove=False, glass=True)
                 
-                # Restart
-                self.state = Game.STATE_NOTPLAYING
-                self.start()
+                for x in xrange(Board.PLAY_WIDTH):
+                    for y in xrange(Board.PLAY_HEIGHT):
+                        for z in xrange(Board.PLAY_WIDTH):
+                            if self.blocks[x,y,z]:
+                                if x == self.board.wall_abs-Board.BOARD_BORDER \
+                                    and self.x_match[x][y] == Board.MATCH_COLLIDE:
+                                    self.board.set_wool(x+Board.BOARD_BORDER, y,
+                                         z+Board.BOARD_BORDER, DyeColor.RED)
+                                
+                                elif z == self.board.wall_abs-Board.BOARD_BORDER \
+                                    and self.z_match[x][y] == Board.MATCH_COLLIDE:
+                                    self.board.set_wool(x+Board.BOARD_BORDER, y,
+                                         z+Board.BOARD_BORDER, DyeColor.RED)
+                                else:
+                                    self.board.set_block(x+Board.BOARD_BORDER, y,
+                                        z+Board.BOARD_BORDER, Material.GLASS)
+                            else:
+                                self.board.set_block(x+Board.BOARD_BORDER, y,
+                                    z+Board.BOARD_BORDER, Material.AIR)
+                
+                # Flush the command queue
+                send_globalqueue()
+                
+                self.send_message("Your blocks collided with the wall.")
+                self.send_message("You lost this round :(")
+                
+                self.state = Game.STATE_ENDROUND
             else:
-                self.wall_offset += 1
-                Board.BOARD.draw_gamewalls(self.wall_offset)
-                Timer(Game.WALL_TICK, self.start).start()
+                if self.board.wall_abs - Board.BOARD_BORDER <= 0:
+                    # Check that both designs were satisfied
+                    # TODO
+                    
+                    self.state = Game.STATE_ENDROUND
+                else:
+                    self.wall_offset += 1
+                    self.board.draw_gamewalls(self.wall_offset, blocks=self.blocks)
+                    Timer(Game.WALL_TICK, self.start).start()
+        
+        if self.state == Game.STATE_ENDROUND:
+            self.print_score()
+            
+            # Reset the game wall
+            self.board.draw_gamewalls(blank=True, blocks=self.blocks)
+            
+            self.update_blocks = False
+            self.state = Game.STATE_NOTPLAYING
+            Timer(Game.AFTER_ROUND_TIME, self.start).start()
+
+
+# Debugging functions
+MATCH_CHARS = {
+    Board.MATCH_BLANK: '.',
+    Board.MATCH_MATCH: '#',
+    Board.MATCH_EMPTY: ' ',
+    Board.MATCH_COLLIDE: 'X'
+}
+def match_to_string(match):
+    rows = ['' for x in xrange(len(match[0]))]
+    for col in match:
+        for y,m in enumerate(col[::-1]):
+            rows[y] += MATCH_CHARS[m]
+    return '\n'.join(rows)
+
+def block_slice_to_string(blocks, x=None, z=None):
+    if blocks is None:
+        return None
+    if x is None and z is None:
+        return None
+    if x is not None:
+        s = ''
+        for cy in xrange(Board.PLAY_HEIGHT-1, 0-1, -1):
+            for cz in xrange(Board.PLAY_WIDTH):
+                s += '#' if blocks[x][cy][cz] else '.'
+            s += '\n'
+        return s
+    else:
+        s = ''
+        for cy in xrange(Board.PLAY_HEIGHT-1, 0-1, -1):
+            for cx in xrange(Board.PLAY_WIDTH):
+                s += '#' if blocks[cx][cy][z] else '.'
+            s += '\n'
+        return s
 
 
 if __name__ == '__main__':
@@ -491,11 +713,6 @@ if __name__ == '__main__':
             usage()
         tracks = False
     
-    # Reuse the blockplayer thread to appease OpenGL
-    block_thread = None
-    if 'game' in globals() and isinstance(game, Game):
-        block_thread = game.block_thread
-    
-    game = Game(block_thread=block_thread, tracks=tracks)
+    game = Game(tracks=tracks)
     game.start()
 
