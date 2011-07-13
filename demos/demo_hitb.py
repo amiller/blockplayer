@@ -29,7 +29,7 @@ if 'socket' in globals():
 
 if 'context' not in globals():
     context = zmq.Context()
-socket = context.socket(zmq.PAIR)
+socket = context.socket(zmq.PUSH)
 socket.connect('tcp://*:8134')
 
 cmd_lock = Lock()
@@ -199,7 +199,7 @@ class Board:
         
         # The playing board
         for x in xrange(Board.BOARD_BORDER, Board.BOARD_LENGTH+1):
-            for z in xrange(Board.BOARD_BORDER, Board.BOARD_WIDTH-Board.BOARD_BORDER):
+            for z in xrange(Board.BOARD_BORDER, Board.BOARD_WIDTH-Board.BOARD_BORDER+1):
                 self.set_wool(x, -1, z, Board.TRACKS[z-Board.BOARD_BORDER]
                     if self.tracks else DyeColor.BLACK)
                 self.set_wool(z, -1, x, Board.TRACKS[z-Board.BOARD_BORDER]
