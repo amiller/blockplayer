@@ -273,6 +273,12 @@ class Board:
                 for x,col in enumerate(self.x_design):
                     for y,isset in enumerate(col):
                         if isset:
+                            if blocks is not None:
+                                if self.wall_abs-Board.BOARD_BORDER < Board.PLAY_WIDTH and \
+                                    (0 <= x - Board.BOARD_BORDER < Board.PLAY_WIDTH 
+                                    and y < Board.PLAY_HEIGHT):
+                                    if blocks[self.wall_abs-Board.BOARD_BORDER][y][x-Board.BOARD_BORDER]:
+                                        continue
                             self.set_block(wall_abs, y, x+Board.BOARD_BORDER,
                                 Material.AIR)
             
@@ -280,6 +286,12 @@ class Board:
                 for x,col in enumerate(self.z_design):
                     for y,isset in enumerate(col):
                         if isset:
+                            if blocks is not None:
+                                if self.wall_abs-Board.BOARD_BORDER < Board.PLAY_WIDTH and \
+                                    (0 <= x - Board.BOARD_BORDER < Board.PLAY_WIDTH 
+                                    and y < Board.PLAY_HEIGHT):
+                                    if blocks[x-Board.BOARD_BORDER][y][self.wall_abs-Board.BOARD_BORDER]:
+                                        continue
                             self.set_block(x+Board.BOARD_BORDER, y, wall_abs,
                                 Material.AIR)
         
@@ -610,14 +622,12 @@ class Game:
             if collide:
                 # Collision detected. Set the colliding blocks to red wool, and
                 # the rest of the blocks to glass for visibility
-                self.board.update_blocks(self.blocks, remove=False, glass=True)
-                
                 for x in xrange(Board.PLAY_WIDTH):
                     for y in xrange(Board.PLAY_HEIGHT):
                         for z in xrange(Board.PLAY_WIDTH):
                             if self.blocks[x,y,z]:
                                 if x == self.board.wall_abs-Board.BOARD_BORDER \
-                                    and x_match[x][y] == Board.MATCH_COLLIDE:
+                                    and x_match[z][y] == Board.MATCH_COLLIDE:
                                     self.board.set_wool(x+Board.BOARD_BORDER, y,
                                          z+Board.BOARD_BORDER, DyeColor.RED)
                                 
