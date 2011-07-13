@@ -1,6 +1,7 @@
 import struct
 import random
 import os.path
+import signal
 from math import ceil
 from glob import glob
 from threading import Timer, Thread, Lock
@@ -50,6 +51,9 @@ def build_addbounds(x, y, z, length, width, height):
 def build_clearbounds():
     return 'c'
 
+def build_tntprimed(x, y, z, ticks):
+    return 't' + struct.pack(">hhhh", x, y, z, ticks)
+
 def send_globalqueue():
     global cmd_queue, commands
     
@@ -92,6 +96,7 @@ class Material:
     AIR = 0
     GRASS = 2
     GLASS = 20
+    TNT = 46
     FENCE = 85
 
 
@@ -150,12 +155,15 @@ class Board:
     def clear_bounds(self):
         add_queue(build_clearbounds())
     
+    def set_tntprimed(self, x, y, z, ticks):
+        add_queue(build_tntprimed(x, y, z, ticks))
+    
     def setup_gameboard(self):
         """Builds the game board and sends it to the server"""
         
         # Clear the board
         for x in xrange(Board.BOARD_LENGTH+1):
-            for z in xrange(Board.BOARD_WIDTH+1):
+            for z in xrange(Board.BOARD_WIDTH+3):
                 for y in xrange(Board.BOARD_HEIGHT+1):
                     self.set_block(x, y, z, Material.AIR)
                     self.set_block(z, y, x, Material.AIR)
@@ -216,9 +224,10 @@ class Board:
         
         # Set the bounds
         # The extra 2 covers the ground below the origin and the glass ceiling
-        self.add_bound(0, -1, 0, Board.BOARD_LENGTH, Board.BOARD_WIDTH,
+        # The extra 1 for the width covers the animation display area
+        self.add_bound(0, -1, 0, Board.BOARD_LENGTH, Board.BOARD_WIDTH+1,
             Board.BOARD_HEIGHT+2)
-        self.add_bound(0, -1, 0, Board.BOARD_WIDTH, Board.BOARD_LENGTH,
+        self.add_bound(0, -1, 0, Board.BOARD_WIDTH, Board.BOARD_LENGTH+1,
             Board.BOARD_HEIGHT+2)
         
         # Flush the command queue
@@ -427,6 +436,24 @@ class Board:
                     y, x, x, y, blocks_idx)
         
         return (x_match, z_match)
+    
+    def display(self, disp):
+        """Display a block image string"""
+        xlen = Board.BOARD_LENGTH*2 - Board.BOARD_WIDTH*2
+        for x in xrange(xlen):
+            for y in xrange(Board.PLAY_HEIGHT):
+                if x < Board.BOARD_LENGTH - Board.BOARD_WIDTH:
+                    x_coord = Board.BOARD_LENGTH - x
+                    z_coord = Board.BOARD_WIDTH + 1
+                else:
+                    x_coord = Board.BOARD_WIDTH + 1
+                    z_coord = x - Board.BOARD_LENGTH + Board.BOARD_WIDTH*2 + 2
+                
+                if disp[x,y]:
+                    self.set_block(x_coord, y, z_coord, Material.TNT)
+                    self.set_tntprimed(x_coord, y, z_coord, 30)
+                else:
+                    self.set_block(x_coord, y, z_coord, Material.AIR)
 
 
 class Game:
@@ -449,6 +476,12 @@ class Game:
     LOSE_POINTS = 0
     
     def __init__(self, clear_bounds=True, tracks=True):
+        self.restart()
+    
+    def restart(self):
+        """Sets all variables to their initial state, redraws the game board,
+        and restarts blockplayer."""
+        
         self.state = Game.STATE_NOTPLAYING
         self.countdown = 5
         self.round = 0
@@ -540,25 +573,14 @@ class Game:
     
     def block_loop(self):
         """Loops the blockplayer frame processing function"""
-        try:
-            while not self.block_loop_quit:
-                self.block_once()
-            glxcontext.destroy()
-        except KeyboardInterrupt:
-            self.quit()
+        while not self.block_loop_quit:
+            self.block_once()
     
     def print_score(self):
         """Display the player's score"""
         self.send_message("Score: %d" % self.score)
     
     def start(self):
-        """Begins the game, watching for KeyboardInterrupts"""
-        try:
-            self._start()
-        except KeyboardInterrupt:
-            self.quit()
-    
-    def _start(self):
         """Begins the game."""
         
         # Block until blockplayer is initialized
@@ -701,6 +723,24 @@ class Game:
             Timer(Game.AFTER_ROUND_TIME, self.start).start()
 
 
+def disp_format(anim):
+    """Formats an animation display string to be passed to the display"""
+    n = np.array([c=='#' for c in ''.join([line[::-1] for line in anim.split('\n')[::-1]])])
+    n = np.split(n, Board.BOARD_HEIGHT)
+    return np.rot90(n)
+
+WIN_TEXT = disp_format("""\
+..........................................................
+............#........#..#######..#.....#..................
+............#........#.....#.....##....#..................
+............#........#.....#.....#.#...#..................
+............#........#.....#.....#..#..#..................
+............#...##...#.....#.....#...#.#..................
+............#..#..#..#.....#.....#....##..................
+............###....###..#######..#.....#..................
+..........................................................""")
+
+
 # Debugging functions
 MATCH_CHARS = {
     Board.MATCH_BLANK: '.',
@@ -751,6 +791,12 @@ if __name__ == '__main__':
         if sys.argv[1] != '-notracks':
             usage()
         tracks = False
+    
+    # Handle KeyboardInterrupts
+    def handle_sigint(sig, stack):
+        print "Quitting game."
+        game.quit()
+    signal.signal(signal.SIGINT, handle_sigint)
     
     game = Game(tracks=tracks)
     game.start()
