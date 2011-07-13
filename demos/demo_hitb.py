@@ -450,8 +450,8 @@ class Board:
                     z_coord = x - Board.BOARD_LENGTH + Board.BOARD_WIDTH*2 + 2
                 
                 if disp[x,y]:
-                    self.set_block(x_coord, y, z_coord, Material.TNT)
-                    self.set_tntprimed(x_coord, y, z_coord, 30)
+                    #self.set_block(x_coord, y, z_coord, Material.TNT)
+                    self.set_tntprimed(x_coord, y, z_coord, 5)
                 else:
                     self.set_block(x_coord, y, z_coord, Material.AIR)
 
@@ -476,9 +476,9 @@ class Game:
     LOSE_POINTS = 0
     
     def __init__(self, clear_bounds=True, tracks=True):
-        self.restart()
+        self.restart(clear_bounds, tracks)
     
-    def restart(self):
+    def restart(self, clear_bounds=True, tracks=True):
         """Sets all variables to their initial state, redraws the game board,
         and restarts blockplayer."""
         
