@@ -18,6 +18,8 @@ from blockplayer import dataset
 import glxcontext
 import opennpy
 
+import loadgif
+
 FOR_REAL = True
 
 class HitBException(Exception):
@@ -450,10 +452,56 @@ class Board:
                     z_coord = x - Board.BOARD_LENGTH + Board.BOARD_WIDTH*2 + 2
                 
                 if disp[x,y]:
-                    #self.set_block(x_coord, y, z_coord, Material.TNT)
+                    self.set_wool(x_coord, y, z_coord, DyeColor.BLACK)
                     self.set_tntprimed(x_coord, y, z_coord, 5)
                 else:
                     self.set_block(x_coord, y, z_coord, Material.AIR)
+        send_globalqueue()
+    
+    def clear_display(self):
+        """Clear the block display"""
+        xlen = Board.BOARD_LENGTH*2 - Board.BOARD_WIDTH*2
+        for x in xrange(xlen):
+            for y in xrange(Board.PLAY_HEIGHT):
+                if x < Board.BOARD_LENGTH - Board.BOARD_WIDTH:
+                    x_coord = Board.BOARD_LENGTH - x
+                    z_coord = Board.BOARD_WIDTH + 1
+                else:
+                    x_coord = Board.BOARD_WIDTH + 1
+                    z_coord = x - Board.BOARD_LENGTH + Board.BOARD_WIDTH*2 + 2
+                
+                self.set_block(x_coord, y, z_coord, Material.AIR)
+        send_globalqueue()
+    
+    def show_nextframe(self, x, y, z, frames, tick, framenum, use_z=False):
+        frame = frames[framenum]
+        for xc,row in enumerate(frame):
+            for yc,block in enumerate(row):
+                x_coord = xc + x if not use_z else x
+                z_coord = x if not use_z else xc + x
+                if block:
+                    self.set_wool(x_coord, yc + y, z_coord, DyeColor.RED)
+                else:
+                    self.set_block(x_coord, yc + y, z_coord, Material.AIR)
+        send_globalqueue()
+        
+        if framenum < len(frames)-1:
+            Timer(tick, self.show_nextframe, [x, y, z, frames, tick,
+                framenum+1]).start()
+        else:
+            # Clear the frame
+            for xc,row in enumerate(frame):
+                for yc,block in enumerate(row):
+                    x_coord = xc + x if not use_z else x
+                    z_coord = x if not use_z else xc + x
+                    self.set_block(x_coord, yc + y, z_coord, Material.AIR)
+    
+    def display_frames(self, x, y, z, frames, use_z=False, fps=6):
+        """Displays an animated matrix of blocks contained in `frames` as an
+        np.array with shape (frames, width, height) at offset x,y,z from origin
+        with a framerate of `fps`."""
+        tickrate = 1.0/fps
+        self.show_nextframe(x, y, z, frames, tickrate, 0, use_z)
 
 
 class Game:
@@ -490,6 +538,12 @@ class Game:
         
         self.x_match = None
         self.z_match = None
+        
+        self.fireworks = loadgif.load_frames(os.path.join('.',
+            os.path.dirname(__file__), 'fireworks'), size=(30,30))
+        if len(self.fireworks) == 0:
+            self.fireworks = None
+            print >> sys.stderr, "Could not load fireworks frames. Awww..."
         
         self.block_initialized = False
         self.update_blocks = True
@@ -566,7 +620,9 @@ class Game:
         
         # Update the blocks in the playing area
         if self.state < Game.STATE_CHECKWALL and self.update_blocks:
-            self.blocks = blockcraft.translated_rotated(main.R_correct, main.grid.occ)
+            self.blocks = main.grid.occ
+            if hasattr(main, 'R_correct'):
+                self.blocks = blockcraft.translated_rotated(main.R_correct, self.blocks)
             self.blocks = self.block_slice(self.blocks)
             self.board.update_blocks(self.blocks,
                 remove=self.board.wall_abs-Board.BOARD_BORDER > Board.PLAY_WIDTH)
@@ -597,6 +653,7 @@ class Game:
             
             self.update_blocks = True
             self.board.clear_design()
+            self.board.clear_display()
             
             self.x_match = None
             self.z_match = None
@@ -669,6 +726,7 @@ class Game:
                 
                 self.send_message("Your blocks collided with the wall.")
                 self.send_message("You lost this round :(")
+                self.board.display(LOSS_TEXT)
                 
                 self.score += Game.LOSE_POINTS
                 
@@ -700,10 +758,23 @@ class Game:
                     
                     if satisfied:
                         self.send_message("You won this round!")
+                        
+                        self.board.display(WIN_TEXT)
+                        if self.fireworks is not None:
+                            self.board.display_frames(Board.BOARD_WIDTH +
+                                Board.BOARD_BORDER, 0,
+                                Board.BOARD_WIDTH+Board.BOARD_BORDER,
+                                self.fireworks)
+                            self.board.display_frames(Board.BOARD_WIDTH +
+                                Board.BOARD_BORDER, 0,
+                                Board.BOARD_WIDTH+Board.BOARD_BORDER,
+                                self.fireworks, use_z=True)
+                        
                         self.score += Game.WIN_POINTS
                     else:
                         self.send_message("Your blocks did not satisfy both designs.")
                         self.send_message("You lost this round :(")
+                        self.board.display(LOSS_TEXT)
                         self.score += Game.LOSE_POINTS
                     
                     self.state = Game.STATE_ENDROUND
@@ -738,6 +809,17 @@ WIN_TEXT = disp_format("""\
 ............#...##...#.....#.....#...#.#..................
 ............#..#..#..#.....#.....#....##..................
 ............###....###..#######..#.....#..................
+..........................................................""")
+
+LOSS_TEXT = disp_format("""\
+..........................................................
+...............#......####...#####..#####.................
+...............#.....#....#.#......#......................
+...............#.....#....#.#......#......................
+...............#.....#....#..####...####..................
+...............#.....#....#......#......#.................
+...............#.....#....#......#......#.................
+...............#####..####..#####...####..................
 ..........................................................""")
 
 
