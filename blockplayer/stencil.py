@@ -15,13 +15,16 @@ if not 'initialized' in globals():
 color_targets = np.array([0, 20, 50, 120, 180],'i')
 color_names = ['red', 'yellow', 'green', 'blue', 'red']
 
-def print_colors():
-    
+def color_dict():
+    d = {}
     for c, t in zip(color_names, color_targets):
         F = np.array([[[t, 255, 255]]], dtype='u1')
         cv.CvtColor(F, F, cv.CV_HSV2RGB)
-        print c + '\t', F[0,0,:]
+        d[tuple(F[0,0,:].tolist())] = c
+    return d
 
+def print_colors():    
+    print color_dict()
 
 def setup():
     global initialized
