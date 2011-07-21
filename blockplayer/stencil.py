@@ -10,6 +10,19 @@ if not 'initialized' in globals():
     initialized = False
 
 
+# Color targets, defined as hues from 0 to 180
+# red, yellow, green, blue, red
+color_targets = np.array([0, 20, 50, 120, 180],'i')
+color_names = ['red', 'yellow', 'green', 'blue', 'red']
+
+def print_colors():
+    
+    for c, t in zip(color_names, color_targets):
+        F = np.array([[[t, 255, 255]]], dtype='u1')
+        cv.CvtColor(F, F, cv.CV_HSV2RGB)
+        print c + '\t', F[0,0,:]
+
+
 def setup():
     global initialized
     if initialized:
@@ -153,9 +166,6 @@ def stencil_carve(depth, modelmat, occ_grid, rgb=None, rect=((0,0),(640,480))):
         b_vac,_ = np.histogramdd(c, bins, weights=w&
                                  (depthB+10<depth).flatten())
 
-    # Color targets, defined as hues from 0 to 180
-    # red, yellow, green, blue, red
-    color_targets = np.array([0, 20, 50, 120, 180],'i')
 
     if 1:
         cv.CvtColor(RGB.reshape(1,-1,3), HSV.reshape(1,-1,3), cv.CV_RGB2HSV);
