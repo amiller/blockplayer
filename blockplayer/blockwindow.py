@@ -1,4 +1,4 @@
-from pointwindow import PointWindow
+from wxpy3d.pointwindow import PointWindow
 import numpy as np
 from OpenGL.GL import *
 from OpenGL.GLU import *
