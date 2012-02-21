@@ -19,7 +19,9 @@ def color_dict():
     d = {}
     for c, t in zip(color_names, color_targets):
         F = np.array([[[t, 255, 255]]], dtype='u1')
+        F = cv.fromarray(F)
         cv.CvtColor(F, F, cv.CV_HSV2RGB)
+        F = np.asarray(F)
         d[tuple(F[0,0,:].tolist())] = c
     return d
 
@@ -171,12 +173,19 @@ def stencil_carve(depth, modelmat, occ_grid, rgb=None, rect=((0,0),(640,480))):
 
 
     if 1:
-        cv.CvtColor(RGB.reshape(1,-1,3), HSV.reshape(1,-1,3), cv.CV_RGB2HSV);
+        RGBm = cv.fromarray(RGB.reshape(1,-1,3))
+        HSVm = cv.fromarray(HSV.reshape(1,-1,3))
+        cv.CvtColor(RGBm, HSVm, cv.CV_RGB2HSV);
+        HSV = np.asarray(HSVm).reshape(HSV.shape)
         #HSV[:,:,:,1:] = 255
         #Hdiff = np.abs(HSV[:,:,:,:1] - color_targets.reshape(1,1,1,-1))
         #HSV[:,:,:,0] = color_targets[np.argmin(Hdiff,axis=3)]
         speedup_cy.fix_colors(HSV, color_targets)
-        cv.CvtColor(HSV.reshape(1,-1,3), RGB.reshape(1,-1,3), cv.CV_HSV2RGB);
+        RGBm = cv.fromarray(RGB.reshape(1,-1,3))
+        HSVm = cv.fromarray(HSV.reshape(1,-1,3))
+        cv.CvtColor(HSVm, RGBm, cv.CV_HSV2RGB);
+
+        RGB = np.asarray(RGBm).reshape(RGB.shape)
     else:
         RGB = (RGB.astype('i')*4).clip(0,255)
     return b_occ, b_vac, b_total

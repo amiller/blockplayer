@@ -7,7 +7,7 @@ import os
 if not 'FOR_REAL' in globals():
     FOR_REAL = False
 
-from blockplayer.visuals.blockwindow import BlockWindow
+from blockplayer.blockwindow import BlockWindow
 global window
 if not 'window' in globals():
     window = BlockWindow(title='demo_grid', size=(640,480))
@@ -32,7 +32,7 @@ def show_rotated():
     g = blockcraft.translated_rotated(main.R_correct, g)    
     marginal = g.sum(1).astype('u1')*255
     cv.NamedWindow('scale_test', 0)
-    cv.ShowImage('scale_test', marginal)
+    cv.ShowImage('scale_test', cv.fromarray(marginal))
     cv.ResizeWindow('scale_test', 300, 300)
 
 
