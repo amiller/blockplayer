@@ -2,21 +2,23 @@ import os
 import shutil
 import numpy as np
 import time
-import simplejson as json
+import json
 import glob
 import cPickle as pickle
+import glxcontext
 
 from blockplayer import dataset
 from blockplayer import grid
 from blockplayer import main
 
+
 out_path = os.path.join('data/experiments','output')
 
-from blockplayer import glxcontext
-glxcontext.init()
-import sys
-sys.stdout.write("GL Version String: ")
-glxcontext.printinfo()
+
+# Create an offscreen opengl context
+glxcontext.makecurrent()
+from OpenGL.GL import glGetString, GL_VERSION
+print("GL Version String: ", glGetString(GL_VERSION))
 
 
 def once():
@@ -26,16 +28,15 @@ def once():
 
 
 def run_grid():
-
     datasets = glob.glob('data/sets/study_*')
     try:
-        shutil.rmtree(out_path)
-    except:
-        pass
-    os.mkdir(out_path)
+        os.mkdir(out_path)
+    except OSError:
+        print "Couldn't make create output directory [%s], it may already exist." % out_path
+        print "Remove it and try again."
+        return False
 
     for name in datasets:
-    #for name in ('data/sets/cube',):
         dataset.load_dataset(name)
         name = os.path.split(name)[1]
 
@@ -43,8 +44,6 @@ def run_grid():
         folder = os.path.join(out_path, name)
         os.mkdir(folder)
 
-        global modelmat
-        modelmat = None
         main.initialize()
 
         import re

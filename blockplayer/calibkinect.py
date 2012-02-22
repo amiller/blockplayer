@@ -1,6 +1,9 @@
 import numpy as np
 import config
 
+# Build a look up table for quick conversion between 
+# OpenNI values (millimeters) and projective values
+# (1/meters)
 lut = np.arange(5000).astype('f')
 lut[1:] = 1000./lut[1:]
 lut[0] = -1e8
@@ -22,36 +25,13 @@ def recip_depth_openni(depth):
 
 
 def projection():
-    if config.ALIGNED:
-        return aligned_projection()
-    else:
-        return unaligned_projection()
-
-
-def aligned_projection():
     """
-    Camera matrix for the aligned
+    Camera matrix for the aligned 
     """
     fx = 528.0
     fy = 528.0
     cx = 320.0
     cy = 267.0
-
-    mat = np.array([[fx, 0, -cx, 0],
-                    [0, -fy, -cy, 0],
-                    [0, 0, 0, 1],
-                    [0, 0, -1., 0]]).astype('f')
-    return np.ascontiguousarray(mat)
-
-
-def unaligned_projection():
-    """
-    Camera matrix for the aligned
-    """
-    fx = 575.8
-    fy = 575.8
-    cx = 320.0
-    cy = 240.0
 
     mat = np.array([[fx, 0, -cx, 0],
                     [0, -fy, -cy, 0],

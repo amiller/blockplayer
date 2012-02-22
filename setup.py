@@ -2,11 +2,7 @@ from distutils.core import setup
 from distutils.extension import Extension
 from Cython.Distutils import build_ext
 
-ext_modules=[Extension("blockplayer.glxcontext",
-                       ["blockplayer/glxcontext/_glxcontext.c",
-                       "blockplayer/glxcontext/glxcontext.pyx"],
-                       libraries=['X11','GL']),
-             Extension("blockplayer.calibkinect_cy",
+ext_modules=[Extension("blockplayer.calibkinect_cy",
                        ["blockplayer/calibkinect_cy.pyx"]),
              Extension("blockplayer.speedup_cy",
                        ["blockplayer/speedup_cy.pyx"]),
