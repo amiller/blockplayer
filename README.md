@@ -1,4 +1,6 @@
-This is the open-source project that goes along with the IEEE VR2012 paper "Interactive Model Acquisition and Tracking for Building Block Structures".
+This system uses a depth sensor to acquire and track a building block model in realtime, as the user assembles and interacts with the model. This is the open-source project code that goes along with the IEEE VR 2012 (and IEEE TVGC 2012) paper "Interactive Model Acquisition and Tracking for Building Block Structures".
+
+<img src="www/overview.jpg" alt="Teaser image of the BlockPlayer project" />
 
 
 Building
