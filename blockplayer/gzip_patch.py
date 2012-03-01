@@ -1,5 +1,6 @@
-# Andrew Miller <amiller@cs.ucf.edu> (c) 2011
-# BlockPlayer - 3D model reconstruction using Lattice-First algorithm
+# Andrew Miller <amiller@cs.ucf.edu> 2011
+#
+# BlockPlayer - 3D model reconstruction using the Lattice-First algorithm
 # See: 
 #    "Interactive 3D Model Acquisition and Tracking of Building Block Structures"
 #    Andrew Miller, Brandyn White, Emiko Charbonneau, Zach Kanzler, and Joseph J. LaViola Jr.

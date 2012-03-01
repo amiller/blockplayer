@@ -1,3 +1,15 @@
+# Andrew Miller <amiller@cs.ucf.edu> 2011
+#
+# BlockPlayer - 3D model reconstruction using the Lattice-First algorithm
+# See: 
+#    "Interactive 3D Model Acquisition and Tracking of Building Block Structures"
+#    Andrew Miller, Brandyn White, Emiko Charbonneau, Zach Kanzler, and Joseph J. LaViola Jr.
+#    IEEE VR 2012, IEEE TVGC 2012
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at http://mozilla.org/MPL/2.0/.
+
 import numpy as np
 import pylab
 from OpenGL.GL import *
@@ -64,7 +76,7 @@ def once():
     main.update_frame(depth, rgb)
 
     blockdraw.clear()
-    blockdraw.show_grid('o1', main.occvac.occ, color=np.array([1,1,0,1]))
+    #blockdraw.show_grid('o1', main.occvac.occ, color=np.array([1,1,0,1]))
     if 'RGB' in stencil.__dict__:
         blockdraw.show_grid('occ', grid.occ, color=grid.color)
     else:
@@ -85,7 +97,7 @@ def once():
     if 'R_correct' in main.__dict__:
         window.modelmat = main.R_display
 
-    show_rgb(rgb)
+    #show_rgb(rgb)
     window.Refresh()
     pylab.waitforbuttonpress(0.005)
     sys.stdout.flush()
