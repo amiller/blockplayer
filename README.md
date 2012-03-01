@@ -19,7 +19,7 @@ To run our experiment, you will need to download (at least some of) the dataset.
     python experiments/make_output.py
     python makewww/make_grid.py
 
-If the entire dataset is available, then you can produce the average error results summary as shown in Figure 9 of the paper.
+If you have downloaded the entire dataset, then you can produce the average error graph as shown in Figure 9 of the paper.
 
     python experiments/exp_avg.py
 
