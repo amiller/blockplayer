@@ -17,7 +17,6 @@ def run_error():
     datasets.sort()
     d = {}
     for name in datasets:
-        if 'user4' in name: continue
         dataset.load_dataset(name)
         name = os.path.split(name)[1]
         print name
@@ -71,6 +70,7 @@ def run_error():
             removed = hashalign.apply_correction(removed, *c)
             should_be_there = gt | added 
             shouldnot_be_there = (~gt & ~added) | removed
+
             # Sanity check
             assert np.all(shouldnot_be_there ^ should_be_there)
 
@@ -87,9 +87,6 @@ def run_error():
         err = np.sum(yellow | red) 
         totalblocks = np.sum(red | green | blue)
         print err, totalblocks, float(err)/totalblocks
-
-        import re
-        re.match('dfsdf', name)
 
         #_,_,err1,_,_ = grid.xcorr_correction(out, config.GT)
         #assert err == err1/float(gt.sum())
@@ -154,11 +151,7 @@ def chart_error():
     N = unfold('rel').shape[2]
 
     print 'Total mean: ', np.mean(rel)
-    std = 1.96* np.array(std) / np.sqrt(N)
-
-    #inds = np.argsort(rel.mean(0))
-    #rel = np.array(rel[:,inds[::-1]])
-    #std = np.array(std[:,inds[::-1]])
+    std = 1.96 * np.array(std) / np.sqrt(N)
 
     pylab.close(pylab.figure(1))
     pylab.figure(1, figsize=(6,3))
@@ -171,5 +164,5 @@ def chart_error():
 
 
 if __name__ == '__main__':
-    #run_error()
+    run_error()
     chart_error()

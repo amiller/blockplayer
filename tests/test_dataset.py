@@ -1,11 +1,15 @@
+import unittest
 from blockplayer import dataset
-import os
-import sys
+
+class Test(unittest.TestCase):
+    @unittest.skip
+    def test_download(self):
+        dataset.download()
+
+    @unittest.skip
+    def test_dataset(self):
+        dataset.load_random_dataset()
 
 
-def test_download():
-    dataset.download()
-
-
-def test_dataset():
-    dataset.load_random_dataset()
+if __name__ == '__main__':
+    unittest.main()

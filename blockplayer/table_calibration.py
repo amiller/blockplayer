@@ -64,7 +64,7 @@ def run_calib():
 
 
 def find_plane(depth, boundpts):
-    from visuals.camerawindow import CameraWindow
+    from wxpy3d.camerawindow import CameraWindow
     global window
     if not 'window' in globals():
         window = CameraWindow()
