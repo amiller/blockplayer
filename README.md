@@ -43,7 +43,7 @@ Dependencies
 ============
 Blockplayer has several library dependencies that may be difficult to satisfy on your system. The script <code>vmdist/install_vm.sh</code> is the best reference for how to set it up. 
 
-In some cases the script refers to the most recent version of a project, therefore the script might not turn out to be 'future-proofed'. So, in addition to the source code, this project comes with a VirtualBox machine image (*.vdi) which has all necessary dependencies pre-installed. The machine image has been tested with VirtualBox OSE. The scripts in the <code>vmdist</code> directory can be used to build the virtual machine from a stock Ubuntu image, but some undocumented manual configuration is needed to build the virtual machine image.
+In some cases the script refers to the most recent version of a project, therefore the script might not turn out to be 'future-proofed'. So, in addition to the source code, this project comes with an Open Virtual Appliance machine image (*.ova) which has all necessary dependencies pre-installed. The machine image has been tested with VirtualBox OSE. The scripts in the <code>vmdist</code> directory can be used to build the virtual machine from a stock Ubuntu image, but some undocumented manual configuration is needed to build the virtual machine image.
 
 
 Running BlockPlayer on a headless machine
