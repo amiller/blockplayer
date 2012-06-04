@@ -48,6 +48,7 @@ def run_calib():
     for i in range(10):
         opennpy.sync_update()
         depth, _ = opennpy.sync_get_depth()
+        rgb, _ = opennpy.sync_get_video()
 
     fig = figure(1)
     clf()
@@ -59,7 +60,8 @@ def run_calib():
         print('Picked point %d of 4' % (len(points)))
 
     #imshow(depth)
-    imshow(1./depth)
+    #imshow(1./depth)
+    imshow(rgb*np.dstack(3*[1./depth]))
     draw()
     fig.canvas.mpl_disconnect('button_press_event')
     fig.canvas.mpl_connect('button_press_event', pick)
@@ -75,6 +77,14 @@ def run_calib():
     finish_table_calib()
 
 
+def make_mask(boundpts, size=(640,480)):
+    u,v = uv = np.mgrid[:size[1],:size[0]][::-1]
+    mask = np.ones(size[::-1],bool)
+    for (x,y),(dx,dy) in zip(boundpts, boundpts - np.roll(boundpts,1,0)):
+        mask &= ((uv[0]-x)*dy - (uv[1]-y)*dx)<0    
+    return mask
+
+
 def find_plane(depth, boundpts):
     from wxpy3d.camerawindow import CameraWindow
     global window
@@ -82,10 +92,7 @@ def find_plane(depth, boundpts):
         window = CameraWindow()
 
     # Build a mask of the image inside the convex points clicked
-    u,v = uv = np.mgrid[:480,:640][::-1]
-    mask = np.ones((480,640),bool)
-    for (x,y),(dx,dy) in zip(boundpts, boundpts - np.roll(boundpts,1,0)):
-        mask &= ((uv[0]-x)*dy - (uv[1]-y)*dx)<0
+    mask = make_mask(boundpts)
 
     # Borrow the initialization from calibkinect
     KK = np.linalg.inv(calibkinect.projection()).astype('f')
@@ -105,7 +112,7 @@ def find_plane(depth, boundpts):
 
     # Backproject the table plane into the image using inverse transpose
     global tb0
-    tb0 = np.dot(KK.transpose(), tableplane)
+    tb0 = np.dot(KK.T, tableplane)
     tb0[2] = tb0[2]
 
     # Build a matrix projecting sensor points to an system with
@@ -116,7 +123,7 @@ def find_plane(depth, boundpts):
     v0 = np.cross(v1, [-1,0,1]); v0 /= np.sqrt(np.dot(v0,v0))
     v2 = np.cross(v0,v1);
     Ktable = np.eye(4)
-    Ktable[:3,:3] = np.vstack((v0,v1,v2)).transpose()
+    Ktable[:3,:3] = np.vstack((v0,v1,v2)).T
     Ktable[:3,3] = [x,y,z]
     Ktable = np.linalg.inv(Ktable).astype('f')
 
@@ -151,7 +158,7 @@ def find_plane(depth, boundpts):
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
     glOrtho(0,640,0,480,0,-10)
-    glMultMatrixf(np.linalg.inv(KtableKK).transpose())
+    glMultMatrixf(np.linalg.inv(KtableKK).T)
 
     def draw():
         glClear(GL_DEPTH_BUFFER_BIT|GL_COLOR_BUFFER_BIT)
@@ -168,40 +175,46 @@ def find_plane(depth, boundpts):
         glDisable(GL_CULL_FACE)
         glFinish()
 
+    # Rendering the outside faces gives us the near walls
     gf = glGetIntegerv(GL_FRONT_FACE)
     glFrontFace(GL_CCW)
     draw()
     openglbgHi = glReadPixels(0, 0, 640, 480,
-                              GL_DEPTH_COMPONENT, GL_FLOAT).reshape(480,640);
+                              GL_DEPTH_COMPONENT, GL_FLOAT).reshape(480,640)
+
+    # Rendering the interior faces gives us the table plane and the far walls
     glFrontFace(GL_CW)
     draw()
     openglbgLo = glReadPixels(0, 0, 640, 480,
-                              GL_DEPTH_COMPONENT, GL_FLOAT).reshape(480,640);
+                              GL_DEPTH_COMPONENT, GL_FLOAT).reshape(480,640)
     glFrontFace(gf)
 
+    # We need to invert the depth measurements to obtain kinect-style range
+    # images.
+    #    initially, openglbgHi/Lo are in units of 1/m.
+    #    afterwards, they are in units of mm.
     global hi,lo
     openglbgHi = 1000./(openglbgHi*10)
     openglbgLo = 1000./(openglbgLo*10)
     lo = np.array(openglbgLo)
     hi = np.array(openglbgHi)
 
-    #openglbgLo[openglbgLo>=2047] = 0
-    #openglbgHi[np.isnan(openglbgHi)] = 0
     openglbgLo[openglbgHi==openglbgLo] = 0
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDeleteRenderbuffers(2, [rb,rbc]);
     glDeleteFramebuffers(1, [fbo]);
 
+    # Some of the observed image points are nearer than the fitted plane.
+    # We want fewer false positives in this case, so take the maximum
+    # of either the fitted plane or the observed depth
     background = np.array(depth)
     background[~mask] = 0
     background = np.maximum(background,openglbgHi)
-    #backgroundM = normals.project(background)
 
     openglbgLo = openglbgLo.astype(np.uint16)
     background = background.astype(np.uint16)
-    background[background>=5] -= 5
-    #openglbgLo += 5
+    background[background>=5] -= 5   # Reduce false positives even more.
 
     return dict(
         bgLo=openglbgLo,
