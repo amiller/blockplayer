@@ -1,11 +1,12 @@
 import numpy as np
 import pylab
 from OpenGL.GL import *
+import opennpy
 
 if not 'FOR_REAL' in globals():
     FOR_REAL = False
 
-from blockplayer.visuals.pointwindow import PointWindow
+from wxpy3d.pointwindow import PointWindow
 global window
 if not 'window' in globals():
     window = PointWindow(title='demo_lattice', size=(640,480))

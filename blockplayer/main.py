@@ -52,6 +52,15 @@ def update_frame(depth, rgb=None):
     # Find the lattice orientation and then translation
     global R_oriented, R_aligned, R_correct
     R_oriented = lattice.orientation_opencl()
+
+    # Use a preferred initial location
+    LW = config.LW
+    modelmat = R_oriented
+    modelmat = np.linalg.inv(modelmat)
+    modelmat[:3,3] += [0, 0, np.round(0.45/LW)*LW]
+    modelmat = np.linalg.inv(modelmat).astype('f')
+    R_oriented = modelmat
+
     R_aligned = lattice.translation_opencl(R_oriented)
 
     # Use occvac to estimate the voxels from just the current frame
@@ -99,7 +108,7 @@ def update_frame(depth, rgb=None):
         #print 'nothing happened'
         return
 
-    def matrix_slerp(matA, matB, alpha=0.6):
+    def matrix_slerp(matA, matB, alpha=0.4):
         if matA is None:
             return matB
         import transformations

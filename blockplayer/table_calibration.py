@@ -85,6 +85,9 @@ def make_mask(boundpts, size=(640,480)):
     return mask
 
 
+def make_boundptsM(boundpts, KtableKK, tb0, tableplane):
+    pass
+
 def find_plane(depth, boundpts):
     from wxpy3d.camerawindow import CameraWindow
     global window
@@ -111,9 +114,6 @@ def find_plane(depth, boundpts):
     #tablemean = np.array([x,y,z])
 
     # Backproject the table plane into the image using inverse transpose
-    global tb0
-    tb0 = np.dot(KK.T, tableplane)
-    tb0[2] = tb0[2]
 
     # Build a matrix projecting sensor points to an system with
     # the origin on the table, and Y pointing up from the table
@@ -129,7 +129,16 @@ def find_plane(depth, boundpts):
 
     KtableKK = np.dot(Ktable, KK).astype('f')
 
+    #tableplane2 = np.linalg.inv(KtableKK)[1,:]
+    #tableplane2
+
+    #within_eps = lambda a, b: np.abs(a-b) < 1e-5
+    #assert within_eps(tableplane2, tableplane)
+
     global boundptsM
+    tb0 = np.dot(KK.T, tableplane)
+    tb0[2] = tb0[2]
+
     boundptsM = []
     for (up,vp) in boundpts:
         # First project the image points (u,v) onto to the (imaged) tableplane

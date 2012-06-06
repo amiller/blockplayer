@@ -74,9 +74,10 @@ def once():
         rgb,_ = opennpy.sync_get_video()
 
     main.update_frame(depth, rgb)
+    print main.R_aligned
 
     blockdraw.clear()
-    #blockdraw.show_grid('o1', main.occvac.occ, color=np.array([1,1,0,1]))
+    blockdraw.show_grid('o1', main.occvac.occ, color=np.array([1,1,0,1]))
     if 'RGB' in stencil.__dict__:
         blockdraw.show_grid('occ', grid.occ, color=grid.color)
     else:
@@ -91,7 +92,7 @@ def once():
         #window.clearcolor=[1,1,1,0]
         window.flag_drawgrid = True
 
-    if 1:
+    if 0:
         update_display()
 
     if 'R_correct' in main.__dict__:

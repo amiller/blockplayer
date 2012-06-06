@@ -1,8 +1,12 @@
 import numpy as np
 from OpenGL.GL import *
+from OpenGL.GLUT import *
+from OpenGL.GLU import *
+
 from blockplayer import expmap
 from wxpy3d import PointWindow
 from wxpy3d.opengl_state import opengl_state
+
 global window
 if not 'window' in globals():
     window = PointWindow(title='demo_meanshift', size=(640,480))
@@ -18,7 +22,7 @@ def random_basis():
     X = normalize(np.cross(Y, Z))
     return np.array([X,Y,Z]).astype('f')
 
-def random_points(N=1000, mu=0.1):
+def random_points(N=1000, mu=0.2):
     basis = random_basis()
     ind = np.random.randint(3, size=(N,))
     points = (np.sign(np.random.rand(N,1)-0.5) * basis[ind, :] +
@@ -54,9 +58,12 @@ def mean_shift(estimate, nxyz, d=0.3):
 
     global cx, cy, cz
     cx, cy, cz = cc
-    nx = ((cy-cz)*Y*Z).sum() / (cy+cz).sum()
-    ny = ((cz-cx)*Z*X).sum() / (cz+cx).sum()
-    nz = ((cx-cy)*X*Y).sum() / (cx+cy).sum()
+    nx = ((cy-cz)*Y*Z).sum() / (cy+cz).sum() / 1 \
+        if (cy+cz).sum() > 0 else 0
+    ny = ((cz-cx)*Z*X).sum() / (cz+cx).sum() / 1 \
+        if (cz+cx).sum() > 0 else 0
+    nz = ((cx-cy)*X*Y).sum() / (cx+cy).sum() / 1 \
+        if (cx+cy).sum() > 0 else 0
 
     rgba = np.array(cc + [np.ones_like(cc[0])]).transpose()
     window.update_points(XYZ=nxyz, RGBA=rgba/2+.5)
@@ -67,6 +74,7 @@ def mean_shift(estimate, nxyz, d=0.3):
 @window.event
 def post_draw():
     with opengl_state():
+      if 0: 
         B = np.eye(4); B[:3,:3] = basis
         glMultMatrixf(np.linalg.inv(B).transpose())
         glScale(1.3, 1.3, 1.3)
@@ -79,6 +87,23 @@ def post_draw():
         glEnd()
 
     with opengl_state():
+        #quad = gluNewQuadric()
+        #gluSphere(quad, 0.99, 10, 10)
+        glEnable(GL_LINE_STIPPLE)
+        glLineStipple(3, 0xAAAA)
+        glColor(0.1,0.1,0.1)
+        glutWireSphere(1, 10, 10)
+        glTranslate(-1,-1,-1)
+        glScale(0.3,0.3,0.3)
+        glBegin(GL_LINES)
+        glColor(1,0,0); glVertex(0,0,0); glVertex(1,0,0)
+        glColor(0,1,0); glVertex(0,0,0); glVertex(0,1,0)
+        glColor(0,0,1); glVertex(0,0,0); glVertex(0,0,1)
+        glEnd()
+
+
+    with opengl_state():
+      if 1:
         B = np.eye(4); B[:3,:3] = estimate
         glMultMatrixf(np.linalg.inv(B).transpose())
         glLineWidth(2)
@@ -87,6 +112,9 @@ def post_draw():
         glColor(1,0,0); glVertex(0,0,0); glVertex(1,0,0)
         glColor(0,1,0); glVertex(0,0,0); glVertex(0,1,0)
         glColor(0,0,1); glVertex(0,0,0); glVertex(0,0,1)
+        #glColor(1,0,0); glVertex(-1,0,0); glVertex(1,0,0)
+        #glColor(0,1,0); glVertex(0,-1,0); glVertex(0,1,0)
+        #glColor(0,0,1); glVertex(0,0,-1); glVertex(0,0,1)
         glEnd()
 
 
@@ -98,22 +126,34 @@ def EVT_IDLE(*kwargs):
     window.Refresh()
 
 
+D = 0.4
+
 def meanshift():
     global estimate
-    for i in xrange(80):
-        estimate = np.dot(estimate, np.linalg.inv(mean_shift(estimate, nxyz)))
-        mean_shift(estimate, nxyz)
+    for i in xrange(20):
+        estimate = np.dot(np.linalg.inv(mean_shift(estimate, nxyz, D)), estimate)
+        mean_shift(estimate, nxyz, d=D)
         window.Refresh()
-        pylab.waitforbuttonpress(0.1)
+        pylab.waitforbuttonpress(0.2)
 
     
-#basis, nxyz = random_points()
+basis, nxyz = random_points(mu=0.1)
 estimate = random_basis()
-estimate = array([[ 0.86042833,  0.48787376,  0.14711326],
-                  [-0.40038016,  0.46868348,  0.78742081],
-                  [ 0.31521237, -0.73642039,  0.59860349]], 
-                 dtype=float32)
+#estimate = array([[ 0.86042833,  0.48787376,  0.14711326],
+#                  [-0.40038016,  0.46868348,  0.78742081],
+#                  [ 0.31521237, -0.73642039,  0.59860349]], 
+#                 dtype=float32)
 
-mean_shift(estimate, nxyz)
+mean_shift(estimate, nxyz, D)
 #window.update_points(XYZ=nxyz)
 window.Refresh()
+
+@window.eventx
+def EVT_KEY_DOWN(evt):
+    global basis, nxyz
+    if evt.GetKeyCode() == ord('R'):
+        basis, nxyz = random_points(mu=0.1)
+        mean_shift(estimate, nxyz, D)
+    if evt.GetKeyCode() == ord('M'):
+        meanshift()
+    window.Refresh()
