@@ -16,7 +16,7 @@ from blockplayer import grid
 from blockplayer import hashalign
 from blockplayer import blockdraw
 
-from blockplayer.blockwindow import BlockWindow
+from blockplayer.visuals.blockwindow import BlockWindow
 global window
 if not 'window' in globals():
     window = BlockWindow(title='demo_align', size=(640,480))
@@ -58,7 +58,7 @@ def once():
     bestmatch, besterr = hashalign.find_best_alignment(GT, GT*0,
                                                        problem, problem*0)
 
-    if 1:
+    if 0:
         for match in matches:
             show_align(GT, hashalign.apply_correction(problem, *match))
             window.Refresh()

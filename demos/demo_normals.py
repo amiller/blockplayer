@@ -20,7 +20,7 @@ from OpenGL.GL import *
 if not 'FOR_REAL' in globals():
     FOR_REAL = False
 
-from wxpy3d.pointwindow import PointWindow
+from blockplayer.visuals.pointwindow import PointWindow
 global window
 if not 'window' in globals():
     window = PointWindow(title='demo_normals', size=(640,480))
