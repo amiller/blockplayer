@@ -28,7 +28,7 @@ if not 'window' in globals():
 
 from blockplayer import dataset
 from blockplayer import config
-from blockplayer import preprocess
+from blockplayer import opencl
 
 from rtmodel.rangeimage import RangeImage
 from rtmodel.camera import kinect_camera
@@ -53,7 +53,7 @@ def show_normals_sphere(n, w):
     window.upvec = axes_rotation[:3,1]
 
     R,G,B = color_axis(n)
-    window.update_xyz(n[:,:,0], n[:,:,1], n[:,:,2], (R+.5,G+.5,B+.5,w*(R+G+B)))
+    window.update_xyz(n[:,:,0], n[:,:,1], n[:,:,2], (w*(R+.5),w*(G+.5),w*(B+.5),w*(R+G+B)))
     window.Refresh()
 
 
@@ -96,27 +96,29 @@ def once():
 
     global n, w, mask, rect, modelmat
 
-    rimg = RangeImage(depth, kinect_camera())
+    cam = kinect_camera()
+    cam.RT = config.bg['Ktable']
+    rimg = RangeImage(depth, cam)
     rimg.threshold_and_mask(config.bg)
-    rimg.filter()
+    rimg.filter(win=6)
         
-    if 0:
+    if 1:
         rimg.compute_normals()
         n,w = rimg.normals, rimg.weights
         show_normals(n, w, 'normals_numpy')
 
-    if 1:
-        normals.opencl.set_rect(rimg.rect)
-        normals.opencl.load_filt(rimg.depth_filtered)
-        normals.opencl.load_raw(rimg.depth_recip)
-        normals.opencl.load_mask(from_rect(rimg.mask, rimg.rect).astype('u1'))
+    if 0:
+        opencl.set_rect(rimg.rect)
+        opencl.load_filt(rimg.depth_filtered)
+        opencl.load_raw(rimg.depth_recip)
+        opencl.load_mask(from_rect(rimg.mask, rimg.rect).astype('u1'))
 
         dt = timeit.timeit(lambda:
-                               normals.opencl.compute_normals().wait(),
+                               opencl.compute_normals().wait(),
                            number=1)
 
         #print dt
-        nw = normals.opencl.get_normals()
+        nw = opencl.get_normals()
         n,w = nw[:,:,:3], nw[:,:,3]
         #show_normals(n, w, 'normals_opencl')
     show_normals_sphere(n, w)

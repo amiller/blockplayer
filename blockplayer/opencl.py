@@ -102,9 +102,9 @@ def normal_maker(name, mat, matw, matr):
     
     //float4 xXYZW = (float4)(  x,   y, filt[index], 1);
     float4 xXYZW = (float4)(  x,   y, raw[index], 1);
-
     float4 _xyz = matmul4_%s (xXYZW);
     _xyz /= _xyz.w;
+
     xyz = normalize(xyz);
     if (xyz.z < 0) xyz = -xyz;
     float w = (xyz.z>0.1);

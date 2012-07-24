@@ -39,7 +39,7 @@ def update_frame(depth, rgb=None):
 
     global modelmat
 
-    rimg = RangeImage(depth, kinect_camera())
+    rimg = RangeImage(depth, kinect_camera(), RT=config.bg['Ktable'])
     try:
         rimg.threshold_and_mask(config.bg)
     except IndexError:

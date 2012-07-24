@@ -88,12 +88,20 @@ def normals_numpy(depth, rect=((0,0),(640,480)), win=7, mat=None):
     y = X*mat[1,0] + Y*mat[1,1] + Z*mat[1,2] + W*mat[1,3]
     z = X*mat[2,0] + Y*mat[2,1] + Z*mat[2,2] + W*mat[2,3]
     w = np.sqrt(x*x + y*y + z*z)
+
+    x,y,z = (_ / w for _ in x,y,z)
+
     w[z<0] *= -1
     weights = z*0+1
     weights[depth<-1000] = 0
-    weights[(z/w)<.1] = 0
+    weights[z<.1] = 0
+
+    x_ = x*mat[0,0] + y*mat[0,1] + z*mat[0,2]
+    y_ = x*mat[1,0] + y*mat[1,1] + z*mat[1,2]
+    z_ = x*mat[2,0] + y*mat[2,1] + z*mat[2,2]
+
     #return x/w, y/w, z/w
-    return np.dstack((x/w,y/w,z/w)), weights
+    return np.dstack((x_,y_,z_)), weights
 
 
 def normals_c(depth, rect=((0,0),(640,480)), win=7):
