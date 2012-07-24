@@ -11,9 +11,6 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import numpy as np
-import preprocess
-import opencl
-import lattice
 import config
 import os
 import dataset

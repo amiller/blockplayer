@@ -15,7 +15,6 @@ from OpenGL.GLU import *
 import calibkinect
 import pyopencl as cl
 import numpy as np
-import preprocess
 
 
 def print_info(obj, info_cls):
