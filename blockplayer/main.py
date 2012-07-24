@@ -12,8 +12,6 @@
 
 import numpy as np
 import config
-import preprocess
-import normals
 import opencl
 import lattice
 import grid
@@ -23,32 +21,40 @@ import occvac
 import dataset
 import hashalign
 
+from rtmodel.rangeimage import RangeImage
+from rtmodel.camera import kinect_camera
+
 R_display = None
 
 
 def initialize():
     grid.initialize()
-    global R_display
-    R_display = None
-
+    global R_display, S1, S2
+    R_display = S1 = S2 = None
 
 def update_frame(depth, rgb=None):
     def from_rect(m,rect):
         (l,t),(r,b) = rect
         return m[t:b,l:r]
 
-    global mask, rect, modelmat
+    global modelmat
 
+    rimg = RangeImage(depth, kinect_camera())
     try:
-        (mask,rect) = preprocess.threshold_and_mask(depth,config.bg)
+        rimg.threshold_and_mask(config.bg)
     except IndexError:
         grid.initialize()
         modelmat = None
         return
+    rimg.filter()
 
     # Compute the surface normals
-    normals.normals_opencl(depth, mask, rect)
-
+    opencl.set_rect(rimg.rect)
+    opencl.load_filt(rimg.depth_filtered)
+    opencl.load_raw(rimg.depth_recip)
+    opencl.load_mask(from_rect(rimg.mask, rimg.rect).astype('u1'))
+    opencl.compute_normals().wait()
+    
     # Find the lattice orientation and then translation
     global R_oriented, R_aligned, R_correct
     R_oriented = lattice.orientation_opencl()
@@ -57,7 +63,7 @@ def update_frame(depth, rgb=None):
     LW = config.LW
     modelmat = R_oriented
     modelmat = np.linalg.inv(modelmat)
-    modelmat[:3,3] += [0, 0, np.round(0.45/LW)*LW]
+    #modelmat[:3,3] += [0, 0, np.round(0.45/LW)*LW]
     modelmat = np.linalg.inv(modelmat).astype('f')
     R_oriented = modelmat
 
@@ -81,7 +87,7 @@ def update_frame(depth, rgb=None):
                                                   R_aligned,
                                                   grid.previous_estimate['R_correct'])
         except ValueError:
-            #print 'could not align previous'
+            print 'could not align previous'
             return None
 
         R_correct = hashalign.correction2modelmat(R_aligned, *c)
@@ -108,22 +114,36 @@ def update_frame(depth, rgb=None):
         #print 'nothing happened'
         return
 
-    def matrix_slerp(matA, matB, alpha=0.4):
+    def matrix_slerp(matA, matB, alphaT=0.01, alphaR=0.01):
+        # alpha = 1 means no smoothing is applied
+        # alpha = 0 means the value never changes
         if matA is None:
             return matB
         import transformations
         qA = transformations.quaternion_from_matrix(matA)
         qB = transformations.quaternion_from_matrix(matB)
-        qC =transformations.quaternion_slerp(qA, qB, alpha)
+        qC =transformations.quaternion_slerp(qA, qB, alphaR)
         mat = matB.copy()
-        mat[:3,3] = (alpha)*matA[:3,3] + (1-alpha)*matB[:3,3]
         mat[:3,:3] = transformations.quaternion_matrix(qC)[:3,:3]
+        mat = np.linalg.inv(mat)
+        mat[:3,3] = (1-alphaT)*np.linalg.inv(matA)[:3,3] + (alphaT)*np.linalg.inv(matB)[:3,3]
+        mat = np.linalg.inv(mat).astype('f')
         return mat
 
     global R_display
-    R_display = matrix_slerp(R_display, R_correct)
+    global S1, S2
 
-    occ_stencil, vac_stencil = grid.stencil_carve(depth, rect,
+    # Double exponential smoothing
+    # See: LaViola, 2003
+    # http://www.cs.brown.edu/~jjl/pubs/kfvsexp_final_laviola.pdf
+    alphaT = 0.2
+    alphaR = 0.2
+    S1 = matrix_slerp(S1, R_correct, alphaT, alphaR)
+    S2 = matrix_slerp(S2, S1, alphaT, alphaR)
+    R_display = matrix_slerp(S1, S2, (3*alphaT-1)/(1-alphaT), (3*alphaR-1)/(1-alphaR))
+    #R_display = matrix_slerp(R_display, R_correct, alphaT, alphaR)
+
+    occ_stencil, vac_stencil = grid.stencil_carve(depth, rimg.rect,
                                                   R_correct, occ, vac,
                                                   rgb)
     if lattice.is_valid_estimate():

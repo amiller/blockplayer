@@ -31,7 +31,6 @@ speedup.normals.argtypes = [matarg, matarg, matarg,
                             matarg, matarg, matarg,
                             matarg, ctypes.c_int, ctypes.c_int]
 
-
 def normals_opencl(depth, mask=None, rect=((0,0),(640,480)), win=6):
     def from_rect(m,rect):
         (l,t),(r,b) = rect

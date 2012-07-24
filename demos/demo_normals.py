@@ -27,10 +27,11 @@ if not 'window' in globals():
     window.Move((0,0))
 
 from blockplayer import dataset
-from blockplayer import normals
 from blockplayer import config
 from blockplayer import preprocess
 
+from rtmodel.rangeimage import RangeImage
+from rtmodel.camera import kinect_camera
 
 def color_axis(normals,d=0.1):
     #n = np.log(np.power(normals,40))
@@ -93,29 +94,32 @@ def once():
         (l,t),(r,b) = rect
         return m[t:b,l:r]
 
-    global mask, rect, modelmat
-    (mask,rect) = preprocess.threshold_and_mask(depth,config.bg)
+    global n, w, mask, rect, modelmat
 
-    global n,w
+    rimg = RangeImage(depth, kinect_camera())
+    rimg.threshold_and_mask(config.bg)
+    rimg.filter()
+        
     if 0:
-        n,w = normals.normals_numpy(depth)
+        rimg.compute_normals()
+        n,w = rimg.normals, rimg.weights
         show_normals(n, w, 'normals_numpy')
 
-    if 0:
-        n,w = normals.normals_c(depth)
-        show_normals(n, w, 'normals_c')
-
     if 1:
-        normals.opencl.set_rect(rect)
+        normals.opencl.set_rect(rimg.rect)
+        normals.opencl.load_filt(rimg.depth_filtered)
+        normals.opencl.load_raw(rimg.depth_recip)
+        normals.opencl.load_mask(from_rect(rimg.mask, rimg.rect).astype('u1'))
+
         dt = timeit.timeit(lambda:
-                           normals.normals_opencl(depth, mask, rect).wait(),
+                               normals.opencl.compute_normals().wait(),
                            number=1)
 
         #print dt
         nw = normals.opencl.get_normals()
         n,w = nw[:,:,:3], nw[:,:,3]
         #show_normals(n, w, 'normals_opencl')
-        show_normals_sphere(n, w)
+    show_normals_sphere(n, w)
 
     pylab.waitforbuttonpress(0.01)
 
