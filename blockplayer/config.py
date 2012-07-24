@@ -32,12 +32,14 @@ def save(dir_path):
 
 
 # Duplo block sizes
-LH = 0.0192
+LH = 0.0198
 LW = 0.016
+
 
 # Jenga Block sizes FIXME:(needs to be remeasured)
 #LH = 0.0150
 #LW = 0.0200
+
 
 GRIDRAD = 18
 bounds = (-GRIDRAD,0,-GRIDRAD),(GRIDRAD,9,GRIDRAD)
