@@ -1,4 +1,4 @@
-# Andrew Miller <amiller@cs.ucf.edu> 2011
+# Andrew Miller <amiller@cs.ucf.edu> 2012
 #
 # BlockPlayer - 3D model reconstruction using the Lattice-First algorithm
 # See: 
@@ -15,32 +15,62 @@
 # change during the course of running a video sequence.
 import numpy as np
 import cPickle as pickle
+from rtmodel import camera
 
-
-def load(dir_path):
-    with open('%s/config/config.pkl' % dir_path, 'r') as f:
-        globals().update(pickle.load(f))
-        globals()['LH'] = 0.0192
-
-
-def save(dir_path):
-    with open('%s/config/config.pkl' % dir_path,'w') as f:
-        pickle.dump(dict(bg=bg,
-                         LH=LH,
-                         LW=LW,
-                         ), f)
-
-
+# Useful Quantities
 # Duplo block sizes
-LH = 0.0198
-LW = 0.016
-
+duplo_LH = 0.0198
+duplo_LW = 0.016
 
 # Jenga Block sizes FIXME:(needs to be remeasured)
-#LH = 0.0150
-#LW = 0.0200
+jenga_LH = 0.0150
+jenga_LW = 0.0200
 
 
+# Runtime Parameters (not saved or written by config.load)
 GRIDRAD = 18
 bounds = (-GRIDRAD,0,-GRIDRAD),(GRIDRAD,9,GRIDRAD)
 
+# Default Parameters (saved and restored by config.load)
+center = [0, 0, 0.45]
+blocktype = 'duplo'
+LW,LH = duplo_LW, duplo_LH
+cameras = []
+version = '2012Aug6'
+
+def load(dir_path):
+    global LH, LW, cameras, bg, blocktype, center
+
+    with open('%s/config/config.pkl' % dir_path, 'r') as f:
+        conf = pickle.load(f)
+        assert type(conf) is dict
+
+        if not 'version' in conf:
+            # Assume version from study_user_data for vr2012 paper
+            LH = conf['LH']
+            LW = conf['LW']
+            bg = [conf['bg'],]
+            cameras = [camera.Camera(KK=c['KK'], RT=c['Ktable']) for c in bg]
+            blocktype = 'duplo' # FIXME: What about jenga? Some 
+                                # data in this format has jenga.
+            center = [0, 0, 0]
+
+        elif conf['version'] == '2012Jul24':
+            assert conf['blocktype'] == 'duplo'
+            blocktype='duplo'
+            LH = duplo_LH
+            LW = duplo_LW
+            bg = conf['cameras']
+            cameras = [camera.Camera(KK=c['KK'], RT=c['Ktable']) for c in bg]
+            center = [0, 0, 0.45]
+
+        else:
+            raise ValueError('unrecognized version %s' % version)
+
+def save(dir_path):
+    with open('%s/config/config.pkl' % dir_path,'w') as f:
+        pickle.dump(dict(cameras=cameras,
+                         blocktype=blocktype,
+                         center=center,
+                         version=version,
+                         ), f)

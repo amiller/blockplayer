@@ -39,8 +39,7 @@ cdef convert_(np.uint16_t *depth,
 
 
 def convertOpenNI2Real(depth, u=None, v=None,
-                       mat=np.ascontiguousarray(
-                           np.linalg.inv(calibkinect.projection()))):
+                       mat=calibkinect.projection()):
 
     assert mat.dtype == np.float32, "mat must be np.float32"
     assert mat.shape == (4,4), "mat must be 4x4"

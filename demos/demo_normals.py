@@ -83,9 +83,11 @@ def start(dset=None, frame_num=0):
 
 def once():
     global depth
+    cam = 1
+
     if not FOR_REAL:
         dataset.advance()
-        depth = dataset.depth
+        depth = dataset.depths[cam]
     else:
         opennpy.sync_update()
         depth,_ = opennpy.sync_get_depth()
@@ -96,10 +98,11 @@ def once():
 
     global n, w, mask, rect, modelmat
 
-    cam = kinect_camera()
-    cam.RT = config.bg['Ktable']
-    rimg = RangeImage(depth, cam)
-    rimg.threshold_and_mask(config.bg)
+    
+    camera = kinect_camera()
+    camera.RT = config.cameras[0]['Ktable']
+    rimg = RangeImage(depth, camera)
+    rimg.threshold_and_mask(config.cameras[0])
     rimg.filter(win=6)
         
     if 1:

@@ -41,7 +41,7 @@ if not 'previous_estimate' in globals():
     previous_estimate=occ=vac=occ_stencil=vac_stencil=color=color_count=None
     good_alignment=None
     initialize()
-
+    
 
 def gt2grid(gtstr, chars='*rR'):
     g = np.array(map(lambda _: map(lambda __: tuple(__), _), eval(gtstr)))
@@ -244,7 +244,7 @@ def align_with_previous(R_aligned, occ_new, vac_new):
     return R_correct, occ_new, vac_new
 
 
-def stencil_carve(depth, rect, R_correct, occ, vac, rgb=None):
+def stencil_carve(depth, rect, R_correct, occ, vac, cam, rgb=None):
     global previous_estimate
     if not previous_estimate is None:
         occ_old = previous_estimate['occ']
@@ -253,7 +253,7 @@ def stencil_carve(depth, rect, R_correct, occ, vac, rgb=None):
         cands = occ
     global b_occ, b_vac, b_total
     b_occ, b_vac, b_total = stencil.stencil_carve(depth, R_correct,
-                                                  cands, rgb, rect)
+                                                  cands, cam, rgb, rect)
 
     global occ_stencil, vac_stencil
     occ_stencil = (b_occ/(b_total+1.)>0.9) & (b_total>30)

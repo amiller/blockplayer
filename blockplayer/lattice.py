@@ -79,9 +79,13 @@ def orientation_opencl(noshow=None):
   return mat
 
 
+def orientation6dof_numpy(normals, weights):
+  pass
+
+
 def orientation_numpy(normals,weights):
 
-  # Project the normals against the plane
+  # Project the normals against the XZ plane
   dx,dy,dz = np.rollaxis(normals,2)
 
   # Use the quadruple angle formula to push everything around the
@@ -177,7 +181,6 @@ def translation_numpy(n,w,depth,mat,matxyz,rect,init_t=None):
       if None, the rotation (4-way 90 degree ambiguity) is defined arbitrarily
       and the translation is set to the centroid of the detected points.
   """
-
   (l,t),(r,b) = rect
   assert mat.shape == (4,4)
   assert matxyz.shape == (4,4)

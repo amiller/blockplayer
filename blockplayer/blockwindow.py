@@ -36,7 +36,7 @@ class BlockWindow(PointWindow):
         if 'bg' in config.__dict__:
             glBegin(GL_QUADS)
             glColor(0.2,0.2,0.2,1)
-            for x,y,z in config.bg['boundptsM']:
+            for x,y,z in config.bg[0]['boundptsM']:
                 glVertex(x,y,z)
             glEnd()
 

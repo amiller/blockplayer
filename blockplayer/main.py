@@ -37,11 +37,12 @@ def update_frame(depth, rgb=None):
         (l,t),(r,b) = rect
         return m[t:b,l:r]
 
-    global modelmat
-
-    rimg = RangeImage(depth, kinect_camera(), RT=config.bg['Ktable'])
+    global modelmat, rimg
+    bg = config.bg[0]
+    cam = config.cameras[0]
+    rimg = RangeImage(depth, cam)
     try:
-        rimg.threshold_and_mask(config.bg)
+        rimg.threshold_and_mask(bg)
     except IndexError:
         grid.initialize()
         modelmat = None
@@ -61,9 +62,11 @@ def update_frame(depth, rgb=None):
 
     # Use a preferred initial location
     LW = config.LW
+    LH = config.LH
     modelmat = R_oriented
     modelmat = np.linalg.inv(modelmat)
-    #modelmat[:3,3] += [0, 0, np.round(0.45/LW)*LW]
+    px,py,pz = config.center
+    modelmat[:3,3] += [np.round(px/LW)*LW, np.round(py/LH)*LH, np.round(pz/LW)*LW]
     modelmat = np.linalg.inv(modelmat).astype('f')
     R_oriented = modelmat
 
@@ -75,7 +78,7 @@ def update_frame(depth, rgb=None):
     # Further carve out the voxels using spacecarve
     warn = np.seterr(invalid='ignore')
     try:
-        vac = vac | spacecarve.carve(depth, R_aligned)
+        vac = vac | spacecarve.carve(depth, R_aligned, bg)
     except np.linalg.LinAlgError:
         return
     np.seterr(divide=warn['invalid'])
@@ -144,7 +147,7 @@ def update_frame(depth, rgb=None):
     #R_display = matrix_slerp(R_display, R_correct, alphaT, alphaR)
 
     occ_stencil, vac_stencil = grid.stencil_carve(depth, rimg.rect,
-                                                  R_correct, occ, vac,
+                                                  R_correct, occ, vac, bg,
                                                   rgb)
     if lattice.is_valid_estimate():
         # Run stencil carve and merge

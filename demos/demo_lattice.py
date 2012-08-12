@@ -19,7 +19,6 @@ from blockplayer import opencl
 from blockplayer import lattice
 from blockplayer import grid
 
-
 def once():
     if not FOR_REAL:
         dataset.advance()

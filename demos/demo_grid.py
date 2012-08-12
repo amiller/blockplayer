@@ -25,6 +25,7 @@ if not 'window' in globals():
     window = BlockWindow(title='demo_grid', size=(640,480))
     window.Move((0,0))
 
+from rtmodel.rangeimage import RangeImage
 from blockplayer import config
 from blockplayer import opencl
 from blockplayer import lattice
@@ -35,8 +36,16 @@ from blockplayer import dataset
 from blockplayer import main
 from blockplayer import colormap
 from blockplayer import blockcraft
+from blockplayer import blockmodel
 import cv
 
+
+def draw_indicator():
+    fwd = [0,0,1] # Draw facing the user
+    coords = np.transpose(np.nonzero(grid.occ))
+    y = coords[:,1].max()
+    z = coords[:,2].max()+1
+    x = coords[:,0].max()+1
 
 def show_rotated():
     g = main.grid.occ
@@ -64,17 +73,29 @@ def show_depth(name, depth):
 
 def once():
     global depth, rgb
+
     if not FOR_REAL:
         dataset.advance()
-        depth = dataset.depth
-        rgb = dataset.rgb
+        depth = dataset.depths[0]
+        rgb = dataset.rgbs[0] if dataset.rgbs else None
     else:
         opennpy.sync_update()
         depth,_ = opennpy.sync_get_depth()
         rgb,_ = opennpy.sync_get_video()
 
+    global rimgs, pointmodels
+    rimgs = []
+    pointmodels = []
+    for i,cam in enumerate(config.cameras):
+        rimg = RangeImage(dataset.depths[i], cam)
+        rimg.threshold_and_mask(config.bg[i])
+        rimg.filter(win=6)
+        rimg.compute_normals()
+        rimgs.append(rimg)
+        pointmodels.append(rimg.point_model())
+
     main.update_frame(depth, rgb)
-    print main.R_aligned
+    #print main.R_aligned
 
     blockdraw.clear()
     blockdraw.show_grid('o1', main.occvac.occ, color=np.array([1,1,0,1]))
@@ -92,13 +113,14 @@ def once():
         #window.clearcolor=[1,1,1,0]
         window.flag_drawgrid = True
 
-    if 0:
+    if 1:
         update_display()
 
     if 'R_correct' in main.__dict__:
         window.modelmat = main.R_display
 
     #show_rgb(rgb)
+    window.lookat = np.array(config.center)
     window.Refresh()
     pylab.waitforbuttonpress(0.005)
     sys.stdout.flush()
@@ -125,19 +147,25 @@ def start(dset=None, frame_num=0):
         name = dset
         name = os.path.split(name)[1]
         custom = os.path.join('data/sets/', name, 'gt.txt')
-        if os.path.exists(custom):
-            # Try dataset directory first
-            fname = custom
-        else:
-            import re
-            # Fall back on generic ground truth file
-            match = re.match('.*_z(\d)m_(.*)', name)            
-            number = int(match.groups()[0])
-            fname = 'data/experiments/gt/gt%d.txt' % number
+        try:
+            if os.path.exists(custom):
+                # Try dataset directory first
+                fname = custom
+            else:
+                import re
+                # Fall back on generic ground truth file
+                match = re.match('.*_z(\d)m_(.*)', name)
+                number = int(match.groups()[0])
+                fname = 'data/experiments/gt/gt%d.txt' % number
+                print 'Initializing with groundtruth'
 
-        with open(fname) as f:
-            GT = grid.gt2grid(f.read())
-        grid.initialize_with_groundtruth(GT)
+            with open(fname) as f:
+                GT = grid.gt2grid(f.read())
+            grid.initialize_with_groundtruth(GT)
+
+        except AttributeError: # re.match failed
+            print 'Initializing without groundtruth'
+            grid.initialize()
 
     else:
         config.load('data/newest_calibration')
@@ -166,13 +194,14 @@ def update_display():
     if 1:
         window.update_xyz(Xo, Yo, Zo, (R,G,B,R*0+1))
 
-    show_rotated()
+    #show_rotated()
     window.Refresh()
 
 
 @window.event
 def post_draw():
-    pass
+    config.cameras[0].render_frustum()
+    config.cameras[1].render_frustum()
 
 if 'window' in globals():
     window.Refresh()

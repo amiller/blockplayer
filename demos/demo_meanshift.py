@@ -4,13 +4,21 @@ from OpenGL.GLUT import *
 from OpenGL.GLU import *
 
 from blockplayer import expmap
+from blockplayer import dataset
+from blockplayer import config
 from wxpy3d import PointWindow
 from wxpy3d.opengl_state import opengl_state
+
+from rtmodel.camera import kinect_camera
+from rtmodel.rangeimage import RangeImage
 
 global window
 if not 'window' in globals():
     window = PointWindow(title='demo_meanshift', size=(640,480))
+    glutInit()
     window.Move((0,0))
+
+dataset.load_dataset('data/sets/6dof_cube_0')
 
 def normalize(X):
     return X / np.sqrt(np.sum(X*X))
@@ -21,6 +29,44 @@ def random_basis():
     Z = normalize(np.cross(X, Y))
     X = normalize(np.cross(Y, Z))
     return np.array([X,Y,Z]).astype('f')
+
+def stack(arrs):
+    dtype = arrs[0].dtype
+    stack = []
+    for a in arrs:
+        assert a.dtype == dtype
+        assert len(a.shape) >= 2
+        stack.append(a.reshape((-1,) + a.shape[2:]))
+    return np.concatenate(stack)
+
+def unstack(stack, rects):
+    c = 0
+    imgs = []
+    for rect in rects:
+        (l,t),(r,b) = rect
+        h,w = b-t, r-l
+        imgs.append(stack[c:c+w*h].reshape((h,w,-1)))
+        c += w*h
+    return imgs
+
+def dataset_points(cams=(0,1)):
+    global rimgs
+    rimgs = []
+    for cam in cams:
+        camera = config.cameras[cam]['Ktable']
+        rimg = RangeImage(dataset.depths[cam], camera)
+        rimg.threshold_and_mask(config.cameras[cam])
+        rimg.filter(win=6)
+        rimg.compute_normals()
+        rimgs.append(rimg)
+
+    n = stack([rimg.normals for rimg in rimgs])
+    w = stack([rimg.weights for rimg in rimgs])
+
+    global basis, nxyz
+    basis = random_basis()
+    nxyz = n[w>0]#n
+    window.update_points(XYZ=nxyz)
 
 def random_points(N=1000, mu=0.2):
     basis = random_basis()
@@ -130,7 +176,7 @@ D = 0.4
 
 def meanshift():
     global estimate
-    for i in xrange(20):
+    for i in xrange(4):
         estimate = np.dot(np.linalg.inv(mean_shift(estimate, nxyz, D)), estimate)
         mean_shift(estimate, nxyz, d=D)
         window.Refresh()
@@ -148,6 +194,23 @@ mean_shift(estimate, nxyz, D)
 #window.update_points(XYZ=nxyz)
 window.Refresh()
 
+
+def once():
+    dataset.advance(skip=6)
+    dataset_points()
+    figure(1)
+    clf();
+    imshow(dataset.depths[0])
+    figure(2)
+    clf();
+    imshow(dataset.depths[1])
+    meanshift()
+
+
+def go():
+    while 1:
+        once()
+
 @window.eventx
 def EVT_KEY_DOWN(evt):
     global basis, nxyz
@@ -156,4 +219,13 @@ def EVT_KEY_DOWN(evt):
         mean_shift(estimate, nxyz, D)
     if evt.GetKeyCode() == ord('M'):
         meanshift()
+    if evt.GetKeyCode() == ord('A'):
+        dataset.advance(skip=20)
+        dataset_points()
+        figure(1)
+        clf();
+        imshow(dataset.depths[0])
+        figure(2)
+        clf();
+        imshow(dataset.depths[1])
     window.Refresh()

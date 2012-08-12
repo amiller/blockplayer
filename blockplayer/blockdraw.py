@@ -14,6 +14,10 @@
 import numpy as np
 from OpenGL.GL import *
 
+class BlockDraw(object):
+    def __init__(self, occ, RT=np.eye(4,dtype='f')):
+        pass
+
 if not 'blocks' in globals():
     blocks = {}
 

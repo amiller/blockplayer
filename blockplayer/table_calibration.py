@@ -13,11 +13,12 @@
 from OpenGL.GL import *
 from OpenGL.GL.framebufferobjects import *
 import numpy as np
-import normals
 import calibkinect
 import config
 import opennpy
 from pylab import *
+from rtmodel.camera import kinect_camera
+from rtmodel.rangeimage import RangeImage
 
 
 newest_folder = "data/newest_calibration"
@@ -28,17 +29,18 @@ def from_rect(m, rect):
     return m[t:b,l:r]
 
 
-def finish_table_calib():
+def finish_table_calib(cam=0):
     # We've already picked the bound points for each image
     global depth
-    boundpts = np.load('%s/config/boundpts.npy' % newest_folder)
-    depth = np.load('%s/config/depth.npy' % newest_folder)
+    boundpts = np.load('%s/config/boundpts_%d.npy' % (newest_folder, cam))
+    depth = np.load('%s/config/depth_%d.npy' % (newest_folder, cam))
 
-    config.bg = find_plane(depth, boundpts)
+    while len(config.cameras) <= cam: config.cameras.append(None)
+    config.cameras[cam] = find_plane(depth, boundpts)
     config.save(newest_folder)
 
 
-def run_calib():
+def run_calib(cam=0):
     close('all')
     """Run the table plane calibration
     """
@@ -47,8 +49,8 @@ def run_calib():
     opennpy.align_depth_to_rgb()
     for i in range(10):
         opennpy.sync_update()
-        depth, _ = opennpy.sync_get_depth()
-        rgb, _ = opennpy.sync_get_video()
+        depth, _ = opennpy.sync_get_depth(cam)
+        rgb, _ = opennpy.sync_get_video(cam)
 
     fig = figure(1)
     clf()
@@ -60,8 +62,8 @@ def run_calib():
         print('Picked point %d of 4' % (len(points)))
 
     #imshow(depth)
-    #imshow(1./depth)
-    imshow(rgb*np.dstack(3*[1./depth]))
+    figure(2); imshow(1./depth)
+    figure(1); imshow(rgb*np.dstack(3*[1./depth]))
     draw()
     fig.canvas.mpl_disconnect('button_press_event')
     fig.canvas.mpl_connect('button_press_event', pick)
@@ -71,10 +73,10 @@ def run_calib():
         waitforbuttonpress(0.001)
 
     print 'OK'
-    np.save('%s/config/boundpts' % (newest_folder), points)
-    np.save('%s/config/depth' % (newest_folder), depth)
+    np.save('%s/config/boundpts_%d' % (newest_folder, cam), points)
+    np.save('%s/config/depth_%d' % (newest_folder, cam), depth)
 
-    finish_table_calib()
+    finish_table_calib(cam)
 
 
 def make_mask(boundpts, size=(640,480)):
@@ -98,12 +100,16 @@ def find_plane(depth, boundpts):
     mask = make_mask(boundpts)
 
     # Borrow the initialization from calibkinect
-    KK = np.linalg.inv(calibkinect.projection()).astype('f')
+    KK = calibkinect.projection()
     KK = np.ascontiguousarray(KK)
 
     # Find the average plane going through here
     global n,w
-    n,w = normals.normals_c(depth)
+    cam = kinect_camera()
+    rimg = RangeImage(depth, cam)
+    rimg.filter(win=6)
+    rimg.compute_normals()
+    n,w = rimg.normals, rimg.weights
     maskw = mask & (w>0)
     abc = n[maskw].mean(0)
     abc /= np.sqrt(np.dot(abc,abc))

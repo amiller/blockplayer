@@ -70,7 +70,7 @@ def setup():
     initialized = True
 
 
-def render_blocks(occ_grid, modelmat, rect=((0,0),(640,480))):
+def render_blocks(occ_grid, modelmat, cam, rect=((0,0),(640,480))):
     """
     Returns the result of rendering occ_grid from the point of view of the
     camera.
@@ -95,7 +95,8 @@ def render_blocks(occ_grid, modelmat, rect=((0,0),(640,480))):
     glOrtho(0, 640, 0, 480, -10, 0)
     glMatrixMode(GL_MODELVIEW)
     glLoadIdentity()
-    KtableKK = np.dot(config.bg['Ktable'], config.bg['KK'])
+    KtableKK = np.dot(cam['Ktable'], cam['KK'])
+
     glMultMatrixf(np.linalg.inv(KtableKK).transpose())
     glMultMatrixf(np.linalg.inv(modelmat).transpose())
 
@@ -124,7 +125,7 @@ def render_blocks(occ_grid, modelmat, rect=((0,0),(640,480))):
     return coords, depth
 
 
-def stencil_carve(depth, modelmat, occ_grid, rgb=None, rect=((0,0),(640,480))):
+def stencil_carve(depth, modelmat, occ_grid, cam, rgb=None, rect=((0,0),(640,480))):
     """
 
     """
@@ -133,7 +134,7 @@ def stencil_carve(depth, modelmat, occ_grid, rgb=None, rect=((0,0),(640,480))):
     (L,T),(R,B) = rect
     L,T,R,B = map(int, (L,T,R,B))
     coords, depthB = render_blocks(occ_grid,
-                                   modelmat,
+                                   modelmat, cam,
                                    rect=rect)
     #print depth.mean(), occ_grid.mean(), rect, depthB.mean()
     assert coords.dtype == np.uint8

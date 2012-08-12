@@ -21,29 +21,39 @@ import os
 import grid
 import cv
 
-depth = None
-
+depths = []
+rgbs = []
 current_path = None
 frame_num = None
 
 
 def advance(skip=1):
     # Load the image
-    global frame_num, depth, rgb
+    global frame_num, depths, rgbs
     frame_num += skip
-    with gzip.open('%s/depth_%05d.npy.gz' % (current_path, frame_num),
-                   'rb') as f:
-        depth = np.load(f)
-    try:
-        rgb = cv.LoadImage('%s/rgb_%05d.png' % (current_path, frame_num))
-        cv.CvtColor(rgb, rgb, cv.CV_RGB2BGR)
-        rgb = np.fromstring(rgb.tostring(),'u1').reshape(480,640,3)
-    except KeyboardInterrupt:
-        rgb = None
+    depths = []
+    rgbs = []
+    for cam in range(len(config.cameras)):
+        try:
+            # Try the old style with no frame field (backward compatible)
+            with gzip.open('%s/depth_%05d.npy.gz' % (current_path, frame_num),
+                           'rb') as f:
+                depths.append(np.load(f))
+        except IOError:
+            with gzip.open('%s/depth_%05d_%d.npy.gz' % (current_path, frame_num, cam),
+                           'rb') as f:
+                depths.append(np.load(f))
+        try:
+            rgb = cv.LoadImage('%s/rgb_%05d_%d.png' % (current_path, frame_num,cam))
+            cv.CvtColor(rgb, rgb, cv.CV_RGB2BGR)
+            rgbs.append(np.fromstring(rgb.tostring(),'u1').reshape(480,640,3))
+        except IOError:
+            rgbs = []
 
 
 def setup_opencl():
-    opencl.setup_kernel((config.bg['KK'],config.bg['Ktable']))
+    cam = config.cameras[0]
+    opencl.setup_kernel((cam.KK,cam.RT))
 
 
 def load_dataset(pathname):
@@ -82,7 +92,7 @@ def load_random_dataset():
 def download():
     # Download from this url
     url = "https://s3.amazonaws.com/blockplayer/datasets.tar.gz"
-    print "Go wget it yourself. %s" % url
+    print "Use wget: %s" % url
     cmd = "wget %s; cd data/; tar -xzf datasets.tar.gz data/"
     print cmd
 

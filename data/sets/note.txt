@@ -1,1 +1,0 @@
-This directory (data/sets/) contains datasets for running blockplayer in batch (not realtime) mode. See ../../../README for details.

@@ -30,23 +30,31 @@ def show_depth(name, depth):
 depth_cache = []
 
 
-def preview():
+def preview(cams):
     opennpy.sync_update()
-    (depth,_) = opennpy.sync_get_depth()
     global depth_cache
-    depth_cache.append(np.array(depth))
-    depth_cache = depth_cache[-5:]
-    show_depth('depth', depth)
+    for cam in cams:
+        (depth,_) = opennpy.sync_get_depth(cam)
+        depth_cache.append(np.array(depth))
+        depth_cache = depth_cache[-6:]
+        show_depth('depth_%d'%cam, depth)
 
 
-def go():
+def go(cams=(0,)):
     opennpy.align_depth_to_rgb()
     while 1:
-        preview()
+        preview(cams)
         pylab.waitforbuttonpress(0.005)
 
 
-def record(filename=None):
+def record(filename=None, cams=(0,), do_rgb=False):
+    if len(cams) > 1 and do_rgb:
+        print """You're trying to record from 2+ kinects with RGB and depth.
+        This probably will not work out for you, but it depends on if you have
+        enough USB bandwidth to support all four streams. Call record with 
+        do_rgb=False to turn off rgb."""
+
+        
     opennpy.align_depth_to_rgb()
     if filename is None:
         filename = str(np.random.rand())
@@ -62,14 +70,15 @@ def record(filename=None):
     try:
         while 1:
             opennpy.sync_update()
-            (depth,_) = opennpy.sync_get_depth()
-            (rgb,_) = opennpy.sync_get_video()
+            for cam in cams:
+                (depth,_) = opennpy.sync_get_depth(cam)
+                np.save('%s/depth_%05d_%d.npy' % (foldername,frame,cam), depth)
 
-            np.save('%s/depth_%05d.npy' % (foldername,frame), depth)
-
-            cv.CvtColor(rgb, rgb, cv.CV_RGB2BGR)
-            cv.SaveImage('%s/rgb_%05d.png' % (foldername,frame), rgb)
-
+                if do_rgb:
+                    (rgb,_) = opennpy.sync_get_video(cam)
+                    cv.CvtColor(rgb, rgb, cv.CV_RGB2BGR)
+                    cv.SaveImage('%s/rgb_%05d_%d.png' % (foldername,frame,cam), rgb)
+            
             if frame % 30 == 0:
                 print 'frame: %d' % frame
             frame = frame + 1

@@ -30,7 +30,7 @@ def depth_inds(modelmat, X, Y, Z):
     return x/w, y/w, z/w
 
 
-def carve(depth, modelmat):
+def carve(depth, modelmat, cam):
 
     if 1:
         gridmin, gridmax = config.bounds
@@ -42,10 +42,10 @@ def carve(depth, modelmat):
         vac = np.zeros((gridmax[0]-gridmin[0],
                         gridmax[1]-gridmin[1],
                         gridmax[2]-gridmin[2]), 'u1')
-        mat = config.bg['KK']
+        mat = cam['KK']
         modelmat = np.linalg.inv(np.dot(np.dot(modelmat,
-                                               config.bg['Ktable']),
-                                        config.bg['KK']))
+                                               cam['Ktable']),
+                                        cam['KK']))
         modelmat = np.ascontiguousarray(modelmat)
         speedup_cy.spacecarve(depth, vac, modelmat, mat,
                               gridmin, gridmax,

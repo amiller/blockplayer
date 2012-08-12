@@ -295,7 +295,7 @@ kernel void gridinds_compute(
 
 def setup_kernel(mats=None):
     if mats is None:
-        mats = (np.ascontiguousarray(np.linalg.inv(calibkinect.projection())),
+        mats = (calibkinect.projection(),
                 np.eye(4))
 
     KK, RT = mats
