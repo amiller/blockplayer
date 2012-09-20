@@ -26,6 +26,17 @@ If you have downloaded the entire dataset, then you can produce the average erro
     python experiments/exp_avg.py
 
 
+Running with a prerecorded dataset
+==================================
+Download one or two of the files from http://isue-server.eecs.ucf.edu/amillervr2012/dataset/. 
+        
+        $ wget http://isue-server.eecs.ucf.edu/amillervr2012/dataset/study_user1_z1m_add.tar.gz
+        $ tar -xzf study_user1_z1m_add.tar.gz
+        $ ipython
+        [1] run -i demos/demo_grid.py
+        [2] go('data/sets/study_uzer_z1m_add')
+
+
 Running in live real-time mode
 ==============================
 The system will first need to be calibrated. Place the Kinect sensor on a stand about a half meter above the table surface, facing down at around 45 degrees. Check that your desired work area is within the field of view of the camera. The minimum distance the sensor perceives is about half a meter. From the IPython shell, use the following commands:
