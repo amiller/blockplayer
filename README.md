@@ -32,9 +32,9 @@ Download one or two of the files from http://isue-server.eecs.ucf.edu/amillervr2
         
         $ wget http://isue-server.eecs.ucf.edu/amillervr2012/dataset/study_user1_z1m_add.tar.gz
         $ tar -xzf study_user1_z1m_add.tar.gz
-        $ ipython
+        $ ipython --pylab=wx
         [1] run -i demos/demo_grid.py
-        [2] go('data/sets/study_uzer_z1m_add')
+        [2] go('data/sets/study_user1_z1m_add')
 
 
 Running in live real-time mode
