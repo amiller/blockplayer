@@ -39,6 +39,10 @@ def poll():
                 opennpy.sync_update()
                 depth,_ = opennpy.sync_get_depth()
                 socket.send_json(('depth',depth.tolist()))
+            if cmd == 'rgb':
+                opennpy.sync_update()
+                rgb,_ = opennpy.sync_get_video()
+                socket.send_json(('rgb',rgb.tolist()))
         except zmq.ZMQError, e:
             if e.errno == zmq.EAGAIN: break
             else: raise

@@ -20,6 +20,10 @@ def poll():
                 depth = np.array(data, 'u2')
                 cv.ShowImage('depth', cv.fromarray(depth.astype('f')/1024.))
                 print 'Received depth', depth.shape, depth.dtype
+            if kind == 'rgb':
+                rgb = np.array(data, 'u1')
+                cv.ShowImage('rgb', cv.fromarray(rgb))
+                print 'Received rgb', rgb.shape, rgb.dtype
             if kind == 'pose':
                 pass
                 #print 'Received pose %d', pose.shape, pose.dtype
@@ -29,6 +33,11 @@ def poll():
 
 def get_depth():
     socket.send_json("depth")
+    time.sleep(0.2)
+    poll()
+
+def get_video():
+    socket.send_json("rgb")
     time.sleep(0.2)
     poll()
 
