@@ -25,8 +25,13 @@ def poll():
                 cv.ShowImage('rgb', cv.fromarray(rgb))
                 print 'Received rgb', rgb.shape, rgb.dtype
             if kind == 'pose':
-                pass
-                #print 'Received pose %d', pose.shape, pose.dtype
+                pose = np.array(data, 'f')
+                assert pose.shape == (4,4)
+                print 'Received pose', pose.shape, pose.dtype
+            if kind == 'voxels':
+                voxels = np.array(data, bool)
+                assert len(np.array(data).shape) == 3
+                print 'Received voxels', voxels.shape, time.time()
         except zmq.ZMQError, e:
             if e.errno == zmq.EAGAIN: break
             else: raise

@@ -35,6 +35,8 @@ from blockplayer import dataset
 from blockplayer import main
 from blockplayer import colormap
 from blockplayer import blockcraft
+from blockplayer import server
+
 import cv
 
 
@@ -74,6 +76,9 @@ def once():
         rgb,_ = opennpy.sync_get_video()
 
     main.update_frame(depth, rgb)
+    server.poll()
+    server.send_pose(main.R_display)
+    server.send_voxels(grid.occ)
 
     blockdraw.clear()
     #blockdraw.show_grid('o1', main.occvac.occ, color=np.array([1,1,0,1]))
