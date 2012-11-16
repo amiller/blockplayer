@@ -78,7 +78,8 @@ def once():
     main.update_frame(depth, rgb)
     server.poll()
     server.send_pose(main.R_display)
-    server.send_voxels(grid.occ)
+    #server.send_voxels(grid.occ)
+    server.send_color(grid.occ, grid.color)
 
     blockdraw.clear()
     #blockdraw.show_grid('o1', main.occvac.occ, color=np.array([1,1,0,1]))

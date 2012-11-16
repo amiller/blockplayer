@@ -31,7 +31,13 @@ def poll():
             if kind == 'voxels':
                 voxels = np.array(data, bool)
                 assert len(np.array(data).shape) == 3
-                print 'Received voxels', voxels.shape, time.time()
+                print 'Received voxels', voxels.shape, time.time(), voxels.sum()
+            if kind == 'voxels_colors':
+                shape = data[0]
+                voxels = data[1]
+                assert len(shape) == 3
+                assert shape[0]*shape[1]*shape[2] == len(voxels)
+                print 'Received color voxels', shape, time.time(), voxels
         except zmq.ZMQError, e:
             if e.errno == zmq.EAGAIN: break
             else: raise
@@ -49,4 +55,3 @@ def get_video():
 if __name__ == '__main__':
     print 'Connecting 0mq client to tcp://*:8134'
     print 'Commands to try: get_depth(), poll(), go()'
-
