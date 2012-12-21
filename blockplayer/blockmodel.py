@@ -147,6 +147,7 @@ def render_context(RT, cam, rect=((0,0),(640,480))):
 
         # Sanity check
         if debug:
+            if depth.max() == 0: print 'Degenerate (zero) depth image'
             print 'Checking two equivalent depth calculations'
             old = np.seterr(divide='ignore')
             within_eps = lambda a,b: np.all(np.abs(a - b) < 2)
@@ -222,7 +223,12 @@ class BlockModel(object):
 
             if do_read:
                 depth,color,normals = read(debug=False)
-                return RangeImage(depth.astype('u2'), camera), color, normals
+                rimg = RangeImage(depth.astype('u2'), camera)
+                assert normals.shape[2] == 3 and normals.dtype == np.float32
+                #rimg.normals = normals
+                #rimg.weights = depth > 0
+                return rimg, color, normals
+
 
 
 def gt2grid(gtstr, chars='*rR'):
