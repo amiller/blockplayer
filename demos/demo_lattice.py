@@ -97,5 +97,7 @@ if 'window' in globals():
 
 
 if __name__ == '__main__':
+    print """BROKEN DEMO ALERT! I think this demo is out of date. If 
+I fix it, I'll probably remember to remove this message."""
     pass
     #go()
