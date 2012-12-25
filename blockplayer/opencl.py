@@ -135,14 +135,6 @@ inline float4 matmul4h(const float4 mat[4], const float4 r1) {
   return (float4)(W*dot(mat[0],r1),W*dot(mat[1],r1),W*dot(mat[2],r1), 1);
 }
 
-inline float4 color_axis(float4 n)
-{
-  float4 n2 = n*n;
-  float4 c2 = n2.yzxw + n2.zxyw;
-  float4 cm = (float4) step(c2, (float4)(0.1)); // c2<DIST^2, peraxis weight
-  return cm;
-}
-
 // Normal kernels go here
 %s
 
@@ -165,7 +157,7 @@ kernel void flatrot_compute(
   float qz = 4*dz*dx*dx*dx - 4*dz*dz*dz * dx;
   float qx = dx*dx*dx*dx - 6*dx*dx*dz*dz + dz*dz*dz*dz;
   
-  if (dy<0.3) output[index] = (float4)(qx, 0,qz, 1);  
+  if (dy<0.3) output[index] = (float4)(qx, 0,qz, 1);
   else        output[index] = (float4)(0,0,0,0);
 }
 

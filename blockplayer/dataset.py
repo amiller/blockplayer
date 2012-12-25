@@ -75,9 +75,28 @@ def load_dataset(pathname):
 
 
 def load_gt():
-    with open(os.path.join(current_path, 'config/gt.txt'),'r') as f:
-        s = f.read()
-    return grid.gt2grid(s)
+    name = current_path
+    name = os.path.split(name)[1]
+    custom = os.path.join('data/sets/', name, 'gt.txt')
+    try:
+        if os.path.exists(custom):
+            # Try dataset directory first
+            fname = custom
+        else:
+            import re
+            # Fall back on generic ground truth file
+            match = re.match('.*_z(\d)m_(.*)', name)
+            number = int(match.groups()[0])
+            fname = 'data/experiments/gt/gt%d.txt' % number
+            print 'Initializing with groundtruth'
+
+        with open(fname) as f:
+            GT = grid.gt2grid(f.read())
+        grid.initialize_with_groundtruth(GT)
+
+    except AttributeError: # re.match failed
+        print 'Initializing without groundtruth'
+        grid.initialize()
 
 
 def load_random_dataset():

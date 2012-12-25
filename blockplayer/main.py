@@ -32,11 +32,13 @@ def initialize():
     global R_display, S1, S2
     R_display = S1 = S2 = None
 
-def update_frame(depth, rgb=None):
+def update_frame(depth, rgb=None, use_opencl=False):
+
     def from_rect(m,rect):
         (l,t),(r,b) = rect
         return m[t:b,l:r]
 
+    # Step 1. Preprocess the input images (smoothing, normals, bgsub)
     global modelmat, rimg
     bg = config.bg[0]
     cam = config.cameras[0]
@@ -49,18 +51,26 @@ def update_frame(depth, rgb=None):
         return
     rimg.filter()
 
-    # Compute the surface normals
-    opencl.set_rect(rimg.rect)
-    opencl.load_filt(rimg.depth_filtered)
-    opencl.load_raw(rimg.depth_recip)
-    opencl.load_mask(from_rect(rimg.mask, rimg.rect).astype('u1'))
-    opencl.compute_normals().wait()
-    
-    # Find the lattice orientation and then translation
-    global R_oriented, R_aligned, R_correct
-    R_oriented = lattice.orientation_opencl()
+    if use_opencl:
+        opencl.set_rect(rimg.rect)
+        opencl.load_filt(rimg.depth_filtered)
+        opencl.load_raw(rimg.depth_recip)
+        opencl.load_mask(from_rect(rimg.mask, rimg.rect).astype('u1'))
+        opencl.compute_normals().wait()
+    else:
+        rimg.filter(win=6)
+        rimg.compute_normals()
+        rimg.compute_points()
 
-    # Use a preferred initial location
+    # Step 2. Find the lattice orientation (modulo 90 degree rotation)
+    global R_oriented, R_aligned, R_correct
+    if use_opencl:
+        R_oriented = lattice.orientation_opencl()
+    else:
+        R_oriented = lattice.orientation_numpy(rimg.normals, rimg.weights)
+    assert R_oriented.shape == (4,4)
+
+    # Apply a correction towards config.center
     LW = config.LW
     LH = config.LH
     modelmat = R_oriented
@@ -70,10 +80,21 @@ def update_frame(depth, rgb=None):
     modelmat = np.linalg.inv(modelmat).astype('f')
     R_oriented = modelmat
 
-    R_aligned = lattice.translation_opencl(R_oriented)
+    # Step 3. Find the lattice translation (modulo (LW,LH,LW))
+    if use_opencl:
+        R_aligned = lattice.translation_opencl(R_oriented)
+    else:
+        # Modify the 
+        rimg.RT = R_oriented
+        rimg.compute_points()
+        rimg.compute_normals()
+        R_aligned = lattice.translation_numpy(rimg, R_oriented)
 
-    # Use occvac to estimate the voxels from just the current frame
-    occ, vac = occvac.carve_opencl()
+    # Step 4. Estimate the occupied voxels in the current frame
+    if use_opencl:
+        occ, vac = occvac.carve_opencl()
+    else:
+        occ, vac = occvac.carve(use_opencl=False)
 
     # Further carve out the voxels using spacecarve
     warn = np.seterr(invalid='ignore')
@@ -83,6 +104,7 @@ def update_frame(depth, rgb=None):
         return
     np.seterr(divide=warn['invalid'])
 
+    # Step 5. Align the current estimate with previous
     if grid.has_previous_estimate() and np.any(grid.occ):
         try:
             c,err = hashalign.find_best_alignment(grid.occ, grid.vac,

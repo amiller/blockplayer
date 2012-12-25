@@ -34,11 +34,16 @@ class BlockWindow(PointWindow):
 
         # Draw the gray table
         if 'bg' in config.__dict__:
+            px,py,pz = config.center
+            glPushMatrix()
+            glTranslate(px,py,pz)
             glBegin(GL_QUADS)
             glColor(0.2,0.2,0.2,1)
-            for x,y,z in config.bg[0]['boundptsM']:
-                glVertex(x,y,z)
+            for bg in config.bg:
+                for x,y,z in bg['boundptsM']:
+                    glVertex(x,y,z)
             glEnd()
+            glPopMatrix()
 
         glPushMatrix()
         glMultMatrixf(np.linalg.inv(self.modelmat).transpose())

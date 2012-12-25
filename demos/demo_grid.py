@@ -24,6 +24,7 @@ global window
 if not 'window' in globals():
     window = BlockWindow(title='demo_grid', size=(640,480))
     window.Move((0,0))
+    pointmodels = []
 
 from rtmodel.rangeimage import RangeImage
 from blockplayer import config
@@ -39,13 +40,6 @@ from blockplayer import blockcraft
 from blockplayer import blockmodel
 import cv
 
-
-def draw_indicator():
-    fwd = [0,0,1] # Draw facing the user
-    coords = np.transpose(np.nonzero(grid.occ))
-    y = coords[:,1].max()
-    z = coords[:,2].max()+1
-    x = coords[:,0].max()+1
 
 def show_rotated():
     g = main.grid.occ
@@ -92,7 +86,8 @@ def once():
         rimg.filter(win=6)
         rimg.compute_normals()
         rimgs.append(rimg)
-        pointmodels.append(rimg.point_model())
+        #rimg.compute_points()
+        #pointmodels.append(rimg.point_model())
 
     main.update_frame(depth, rgb)
     #print main.R_aligned
@@ -144,29 +139,7 @@ def start(dset=None, frame_num=0):
         while dataset.frame_num < frame_num:
             dataset.advance()
 
-        name = dset
-        name = os.path.split(name)[1]
-        custom = os.path.join('data/sets/', name, 'gt.txt')
-        try:
-            if os.path.exists(custom):
-                # Try dataset directory first
-                fname = custom
-            else:
-                import re
-                # Fall back on generic ground truth file
-                match = re.match('.*_z(\d)m_(.*)', name)
-                number = int(match.groups()[0])
-                fname = 'data/experiments/gt/gt%d.txt' % number
-                print 'Initializing with groundtruth'
-
-            with open(fname) as f:
-                GT = grid.gt2grid(f.read())
-            grid.initialize_with_groundtruth(GT)
-
-        except AttributeError: # re.match failed
-            print 'Initializing without groundtruth'
-            grid.initialize()
-
+        dataset.load_gt()
     else:
         config.load('data/newest_calibration')
         opennpy.align_depth_to_rgb()
@@ -192,7 +165,7 @@ def update_display():
     R,G,B = [np.abs(_).astype('f') for _ in cx,cy,cz]
 
     if 1:
-        window.update_xyz(Xo, Yo, Zo, (R,G,B,R*0+1))
+        window.update_xyz(Xo, Yo, Zo, COLOR=(R,G,B,R*0+1))
 
     #show_rotated()
     window.Refresh()
@@ -200,8 +173,10 @@ def update_display():
 
 @window.event
 def post_draw():
-    config.cameras[0].render_frustum()
-    config.cameras[1].render_frustum()
+    for c in config.cameras:
+        c.render_frustum()
+    for pm in pointmodels:
+        pm.draw()
 
 if 'window' in globals():
     window.Refresh()

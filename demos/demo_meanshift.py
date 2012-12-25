@@ -53,9 +53,9 @@ def dataset_points(cams=(0,1)):
     global rimgs
     rimgs = []
     for cam in cams:
-        camera = config.cameras[cam]['Ktable']
+        camera = config.cameras[cam]
         rimg = RangeImage(dataset.depths[cam], camera)
-        rimg.threshold_and_mask(config.cameras[cam])
+        rimg.threshold_and_mask(config.bg[cam])
         rimg.filter(win=6)
         rimg.compute_normals()
         rimgs.append(rimg)

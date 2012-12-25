@@ -171,5 +171,5 @@ if 'window' in globals():
     window.Refresh()
 
 if __name__ == '__main__':
-    pass
+    print """BROKEN DEMO WARNING: This demo has fallen out of sync. If I fix this demo, I'll probably notice to remove this message."""
     #go()
