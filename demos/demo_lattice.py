@@ -38,7 +38,7 @@ def once(use_opencl=True,hold=False):
         depth,_ = opennpy.sync_get_depth()
         rgb,_ = opennpy.sync_get_video()
 
-    global rimgs, pointmodels
+    global rimgs, pointmodels, modelmat, rimg
     rimgs = []
     pointmodels = []
     for i,cam in enumerate(config.cameras):
@@ -54,7 +54,6 @@ def once(use_opencl=True,hold=False):
         return m[t:b,l:r]
 
     # Step 1. Preprocess the input images (smoothing, normals, bgsub)
-    global modelmat, rimg
     bg = config.bg[0]
     cam = config.cameras[0]
     rimg = RangeImage(depth, cam)
@@ -74,6 +73,7 @@ def once(use_opencl=True,hold=False):
         opencl.compute_normals().wait()
     else:
         rimg.compute_normals()
+        rimg.compute_points()
 
     # Step 2. Find the lattice orientation (modulo 90 degree rotation)
     global R_oriented, R_aligned, R_correct
@@ -93,16 +93,13 @@ def once(use_opencl=True,hold=False):
     modelmat = np.linalg.inv(modelmat).astype('f')
     R_oriented = modelmat
 
-    # Step 3. Find the lattice translation (modulo (LW,LH,LW))
     if use_opencl:
         R_aligned = lattice.translation_opencl(R_oriented)
     else:
-        rimg.RT = R_oriented
-        rimg.compute_points()
-        rimg.compute_normals()
         R_aligned = lattice.translation_numpy(rimg, R_oriented)
 
-    global modelmat
+    # Step 3. Find the lattice translation (modulo (LW,LH,LW))
+
     if modelmat is None:
         modelmat = R_aligned.copy()
     else:
@@ -115,10 +112,9 @@ def once(use_opencl=True,hold=False):
         Xo,Yo,Zo,_ = np.rollaxis(opencl.get_xyz(),1)
         cx,cy,cz,_ = np.rollaxis(np.frombuffer(np.array(face).data,
                                                dtype='i1').reshape(-1,4),1)-1
-
     else:
         cx,cy,cz = lattice.cXYZ
-        Xo,Yo,Zo = lattice.XYZ
+        Xo,Yo,Zo = lattice.XYZo
 
     assert cx.shape == Xo.shape
     assert cy.shape == Yo.shape

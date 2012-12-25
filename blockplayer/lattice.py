@@ -31,7 +31,6 @@ def circular_mean(data, modulo):
   if np.isnan(a2): a2 = 0
   return a2*modulo
 
-
 def color_axis(X,Y,Z,w,d=0.3):
   X2,Y2,Z2 = X*X,Y*Y,Z*Z
   d = 1/d
@@ -75,7 +74,6 @@ def orientation_opencl(noshow=None):
   # Build an output matrix out of the components
   mat = np.eye(4,4,dtype='f')
   mat[:3,:3] = np.vstack((q0,v1,q2))
-  print 'opencl orientation', mat
   return mat
 
 
@@ -118,7 +116,6 @@ def orientation_numpy(normals,weights):
   # Build an output matrix out of the components
   mat = np.eye(4,4,dtype='f')
   mat[:3,:3] = np.vstack((q0,v1,q2))
-  print 'numpy orientation', mat
   return mat
 
 
@@ -154,7 +151,6 @@ def translation_opencl(R_oriented):
   cxyz_,qx2qz2 = opencl.reduce_lattice2()
   meanx,dmx,countx = cmean(qx2qz2[:2],cxyz_[0])
   meanz,dmy,county = cmean(qx2qz2[2:],cxyz_[2])
-  print 'opencl', meanx,meanz
   modelmat[:,3] -= np.array([meanx, 0, meanz, 0])
 
   return modelmat
@@ -166,53 +162,52 @@ def is_valid_estimate():
           countx > 100 and county >= 100)
 
 
-def translation_numpy(rimg, R_oriented, init_t=None):
+def translation_numpy(rimg, R_oriented):
   """
   Assuming we know the tableplane, find the rotation and translation in
   the XZ plane.
   """
-  assert init_t is None
   assert R_oriented.shape == (4,4)
   assert R_oriented.dtype == np.float32
-  modelmat = np.copy(R_oriented)
 
-  # Project normals from camera space to model space (axis aligned)
+  # Project normals from camera space to model space (axis-aligned)
   global dx,dy,dz
-  global cx,cy,cz
   n,w = rimg.normals, rimg.weights
-  dx,dy,dz = project(*np.rollaxis(n,2), mat=modelmat)
-  #cx,cy,cz = color_axis(dx,dy,dz,w)
+  dx,dy,dz = np.rollaxis(np.dot(n, R_oriented[:3,:3].T),2)
+
+  # Threshold the axis-aligned normals to label them (P_oriented)
   CLIM = 0.9486
   clamp = lambda x: ((x < -CLIM) | (x > CLIM)) & (w>0)
+  global cx,cy,cz
   cx,cy,cz = map(clamp, (dx,dy,dz))
 
-  X,Y,Z = map(partial(from_rect, rect=rimg.rect), np.rollaxis(rimg.xyz,2))
+  # FIXME These points Xo,Yo,Zo are points just for show
+  # They are intended to match the get_xyz points from opencl
+  global XYZ, dXYZ, cXYZ, XYZo
+  XYZ = rimg.xyz
+  Xo,Yo,Zo = [from_rect(_, rimg.rect)*(w>0)
+              for _ in np.rollaxis(XYZ,2)]
 
-  # If we don't have a good initialization for the model space translation,
-  # use the centroid of the surface points.
-  #if init_t:
-  #  modelmat[:,3] -= [X[cx>0].mean(), 0, Z[cz>0].mean(), 0]
-  #  v,u = np.mgrid[t:b,l:r]
-  #  X,Y,Z = project(u.astype('f'),v.astype('f'),depth[t:b,l:r].astype('f'),
-  #                  np.dot(modelmat, matxyz))
+  # Transform points P_camera to P_oriented
+  P_oriented = np.dot(rimg.xyz, R_oriented[:3,:3].T) + R_oriented[:3,3]
+  X,Y,Z = map(partial(from_rect, rect=rimg.rect), 
+              np.rollaxis(P_oriented,2))
 
+  # Find the circular mean and solve for R_aligned
   global meanx, meany, meanz
   meanx = circular_mean(X[cx>0],LW)
   meanz = circular_mean(Z[cz>0],LW)
 
-  ax,az = np.sum(cx>0),np.sum(cz>0)
-  ax,az = [np.minimum(_/30.0,1.0) for _ in ax,az]
-  modelmat[:,3] -= np.array([ax*meanx, 0, az*meanz, 0])
+  R_aligned = np.copy(R_oriented)
+  R_aligned[:,3] -= np.array([meanx, 0, meanz, 0])
 
-  print 'numpy', meanx,meanz
-  X -= (ax)*meanx
-  Z -= (az)*meanz
+  X -= meanx
+  Z -= meanz
 
   # Stacked data in model space
-  global XYZ, dXYZ, cXYZ
+  XYZo = ((Xo,Yo,Zo))
   XYZ = ((X,Y,Z))
   dXYZ = ((dx, dy, dz))
   cXYZ = ((cx, cy, cz))
 
-  return modelmat
-
+  return R_aligned
