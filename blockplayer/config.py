@@ -32,7 +32,6 @@ GRIDRAD = 18
 bounds = (-GRIDRAD,0,-GRIDRAD),(GRIDRAD,9,GRIDRAD)
 
 # Default Parameters (saved and restored by config.load)
-center = [0, 0, 0.45]
 blocktype = 'duplo'
 LW,LH = duplo_LW, duplo_LH
 cameras = []
@@ -53,7 +52,6 @@ def load(dir_path):
             cameras = [camera.Camera(KK=c['KK'], RT=c['Ktable']) for c in bg]
             blocktype = 'duplo' # FIXME: What about jenga? Some 
                                 # data in this format has jenga.
-            center = [0, 0, 0]
 
         elif conf['version'] == '2012Jul24':
             assert conf['blocktype'] == 'duplo'
@@ -61,8 +59,8 @@ def load(dir_path):
             LH = duplo_LH
             LW = duplo_LW
             bg = conf['cameras']
+            for c in bg: c['Ktable'][2,3] -= 0.45
             cameras = [camera.Camera(KK=c['KK'], RT=c['Ktable']) for c in bg]
-            center = [0, 0, 0.45]
 
         else:
             raise ValueError('unrecognized version %s' % version)

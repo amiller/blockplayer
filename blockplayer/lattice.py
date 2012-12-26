@@ -176,38 +176,43 @@ def translation_numpy(rimg, R_oriented):
   dx,dy,dz = np.rollaxis(np.dot(n, R_oriented[:3,:3].T),2)
 
   # Threshold the axis-aligned normals to label them (P_oriented)
-  CLIM = 0.9486
-  clamp = lambda x: ((x < -CLIM) | (x > CLIM)) & (w>0)
   global cx,cy,cz
-  cx,cy,cz = map(clamp, (dx,dy,dz))
-
-  # FIXME These points Xo,Yo,Zo are points just for show
-  # They are intended to match the get_xyz points from opencl
-  global XYZ, dXYZ, cXYZ, XYZo
-  XYZ = rimg.xyz
-  Xo,Yo,Zo = [from_rect(_, rimg.rect)*(w>0)
-              for _ in np.rollaxis(XYZ,2)]
+  CLIM = 0.9486
+  step = lambda edge, x: (x >= edge).astype('i1')
+  thresh = lambda x: (step(x, -CLIM) + step(x, CLIM) - 1) * (w>0)
+  cx,cy,cz = map(thresh, (dx,dy,dz))
 
   # Transform points P_camera to P_oriented
-  P_oriented = np.dot(rimg.xyz, R_oriented[:3,:3].T) + R_oriented[:3,3]
-  X,Y,Z = map(partial(from_rect, rect=rimg.rect), 
-              np.rollaxis(P_oriented,2))
+  global P_oriented
+  XYZ_ = np.dot(rimg.xyz, R_oriented[:3,:3].T) + R_oriented[:3,3]
+  X,Y,Z = map(partial(from_rect, rect=rimg.rect),
+              np.rollaxis(XYZ_,2))
+  P_oriented = np.dstack((X,Y,Z))
 
   # Find the circular mean and solve for R_aligned
   global meanx, meany, meanz
-  meanx = circular_mean(X[cx>0],LW)
-  meanz = circular_mean(Z[cz>0],LW)
+  meanx = circular_mean(X[cx!=0],LW)
+  meanz = circular_mean(Z[cz!=0],LW)
 
   R_aligned = np.copy(R_oriented)
   R_aligned[:,3] -= np.array([meanx, 0, meanz, 0])
 
-  X -= meanx
-  Z -= meanz
+  # Compute P_aligned
+  global P_aligned
+  P_aligned = P_oriented.copy()
+  P_aligned[:,:,0] -= meanx
+  P_aligned[:,:,2] -= meanz
 
   # Stacked data in model space
-  XYZo = ((Xo,Yo,Zo))
-  XYZ = ((X,Y,Z))
+  global XYZ, dXYZ, cXYZ
+  XYZ = np.rollaxis(P_aligned, 2)
   dXYZ = ((dx, dy, dz))
   cXYZ = ((cx, cy, cz))
+
+  # XYZo are just points for show
+  # They are intended to match the get_xyz points from opencl
+  global XYZo
+  XYZo = map(partial(from_rect, rect=rimg.rect), 
+             np.rollaxis(rimg.xyz,2))
 
   return R_aligned
