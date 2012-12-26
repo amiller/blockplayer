@@ -24,6 +24,7 @@ def oriented_numpy():
     rimg.compute_normals()
     rimg.compute_points()
     R_oriented = lattice.orientation_numpy(rimg.normals, rimg.weights)
+    assert R_oriented.shape == (4,4)
     return R_oriented
 
 def oriented_opencl():
@@ -38,6 +39,7 @@ def oriented_opencl():
     opencl.load_mask(from_rect(rimg.mask, rimg.rect).astype('u1'))
     opencl.compute_normals().wait()
     R_oriented = lattice.orientation_opencl()
+    assert R_oriented.shape == (4,4)
     return R_oriented
 
 class OrientationTest(unittest.TestCase):

@@ -57,12 +57,7 @@ def once(use_opencl=True,hold=False):
     bg = config.bg[0]
     cam = config.cameras[0]
     rimg = RangeImage(depth, cam)
-    try:
-        rimg.threshold_and_mask(bg)
-    except IndexError:
-        grid.initialize()
-        modelmat = None
-        return
+    rimg.threshold_and_mask(bg)
     rimg.filter()
 
     if use_opencl:
@@ -83,22 +78,11 @@ def once(use_opencl=True,hold=False):
         R_oriented = lattice.orientation_numpy(rimg.normals, rimg.weights)
     assert R_oriented.shape == (4,4)
 
-    # Apply a correction towards config.center
-    LW = config.LW
-    LH = config.LH
-    modelmat = R_oriented
-    modelmat = np.linalg.inv(modelmat)
-    px,py,pz = config.center
-    modelmat[:3,3] += [np.round(px/LW)*LW, np.round(py/LH)*LH, np.round(pz/LW)*LW]
-    modelmat = np.linalg.inv(modelmat).astype('f')
-    R_oriented = modelmat
-
+    # Step 3. Find the lattice translation (modulo (LW,LH,LW))
     if use_opencl:
         R_aligned = lattice.translation_opencl(R_oriented)
     else:
         R_aligned = lattice.translation_numpy(rimg, R_oriented)
-
-    # Step 3. Find the lattice translation (modulo (LW,LH,LW))
 
     if modelmat is None:
         modelmat = R_aligned.copy()
@@ -126,7 +110,6 @@ def once(use_opencl=True,hold=False):
     #show_rotated()
     window.flag_drawgrid = True
     window.modelmat = modelmat
-    window.lookat = np.array(config.center)
     window.Refresh()
     pylab.waitforbuttonpress(0.005)
 

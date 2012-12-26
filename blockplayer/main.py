@@ -32,7 +32,7 @@ def initialize():
     global R_display, S1, S2
     R_display = S1 = S2 = None
 
-def update_frame(depth, rgb=None, use_opencl=False):
+def update_frame(depth, rgb=None, use_opencl=True):
 
     def from_rect(m,rect):
         (l,t),(r,b) = rect
@@ -49,7 +49,7 @@ def update_frame(depth, rgb=None, use_opencl=False):
         grid.initialize()
         modelmat = None
         return
-    rimg.filter()
+    rimg.filter(win=6)
 
     if use_opencl:
         opencl.set_rect(rimg.rect)
@@ -58,7 +58,6 @@ def update_frame(depth, rgb=None, use_opencl=False):
         opencl.load_mask(from_rect(rimg.mask, rimg.rect).astype('u1'))
         opencl.compute_normals().wait()
     else:
-        rimg.filter(win=6)
         rimg.compute_normals()
         rimg.compute_points()
 
@@ -70,24 +69,10 @@ def update_frame(depth, rgb=None, use_opencl=False):
         R_oriented = lattice.orientation_numpy(rimg.normals, rimg.weights)
     assert R_oriented.shape == (4,4)
 
-    # Apply a correction towards config.center
-    LW = config.LW
-    LH = config.LH
-    modelmat = R_oriented
-    modelmat = np.linalg.inv(modelmat)
-    px,py,pz = config.center
-    modelmat[:3,3] += [np.round(px/LW)*LW, np.round(py/LH)*LH, np.round(pz/LW)*LW]
-    modelmat = np.linalg.inv(modelmat).astype('f')
-    R_oriented = modelmat
-
     # Step 3. Find the lattice translation (modulo (LW,LH,LW))
     if use_opencl:
         R_aligned = lattice.translation_opencl(R_oriented)
     else:
-        # Modify the 
-        rimg.RT = R_oriented
-        rimg.compute_points()
-        rimg.compute_normals()
         R_aligned = lattice.translation_numpy(rimg, R_oriented)
 
     # Step 4. Estimate the occupied voxels in the current frame
