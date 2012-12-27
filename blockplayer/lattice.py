@@ -20,17 +20,6 @@ def from_rect(m,rect):
   (l,t),(r,b) = rect
   return m[t:b,l:r]
 
-def circular_mean(data, modulo):
-  """Given data sampled from a periodic function (with known period: modulo),
-  find the phase by converting to cartesian coordinates.
-  """
-  angle = data / modulo * np.pi * 2
-  y = np.sin(angle)
-  x = np.cos(angle)
-  a2 = np.arctan2(y.mean(),x.mean()) / (2*np.pi)
-  if np.isnan(a2): a2 = 0
-  return a2*modulo
-
 def color_axis(X,Y,Z,w,d=0.3):
   X2,Y2,Z2 = X*X,Y*Y,Z*Z
   d = 1/d
@@ -40,6 +29,19 @@ def color_axis(X,Y,Z,w,d=0.3):
   cx = [w*np.maximum(1.0-(c*(d**2)),0*c) for c in cc]
   return [c for c in cx]
 
+# Find the circular mean, using weights
+def cmean(sum_i, sum_j, count, modulo):
+  i, j = sum_i / count, sum_j / count
+  q = np.arctan2(j,i) / (2*np.pi) * modulo
+  if np.isnan(q): q = 0
+  return q, np.sqrt(i**2 + j**2), count
+
+# Another form of circular mean
+def circular_mean(data, modulo):
+  angle = data / modulo * np.pi * 2
+  j = np.sin(angle)
+  i = np.cos(angle)
+  return cmean(i.sum(), j.sum(), len(angle), modulo)
 
 def project(X, Y, Z, mat):
   x = X*mat[0,0] + Y*mat[0,1] + Z*mat[0,2] + mat[0,3]
@@ -140,26 +142,19 @@ def translation_opencl(R_oriented):
   # Returns warped coordinates, and sincos values for the lattice
   opencl.compute_lattice2(modelmat[:3,:4], LW)
 
-  # Find the circular mean, using weights
-  def cmean(mxy,c):
-    x,y = mxy / c
-    a2 = np.arctan2(y,x) / (2*np.pi) * LW
-    if np.isnan(a2): a2 = 0
-    return a2, np.sqrt(x**2 + y**2), c
-
-  global meanx,meanz,cxyz_,qx2qz2, dmx, dmy, countx, county
+  global meanx,meanz,cxyz_,qx2qz2, dmx, dmz, countx, countz
   cxyz_,qx2qz2 = opencl.reduce_lattice2()
-  meanx,dmx,countx = cmean(qx2qz2[:2],cxyz_[0])
-  meanz,dmy,county = cmean(qx2qz2[2:],cxyz_[2])
+  meanx,dmx,countx = cmean(*qx2qz2[:2],count=cxyz_[0],modulo=LW)
+  meanz,dmz,countz = cmean(*qx2qz2[2:],count=cxyz_[2],modulo=LW)
   modelmat[:,3] -= np.array([meanx, 0, meanz, 0])
 
   return modelmat
 
 
 def is_valid_estimate():
-  global dmx, dmy, countx, county
-  return (dmx >= 0.7 and dmy >= 0.7 and
-          countx > 100 and county >= 100)
+  global dmx, dmz, countx, countz
+  return (dmx >= 0.7 and dmz >= 0.7 and
+          countx > 100 and countz >= 100)
 
 
 def translation_numpy(rimg, R_oriented):
@@ -188,11 +183,13 @@ def translation_numpy(rimg, R_oriented):
   X,Y,Z = map(partial(from_rect, rect=rimg.rect),
               np.rollaxis(XYZ_,2))
   P_oriented = np.dstack((X,Y,Z))
-
+  
   # Find the circular mean and solve for R_aligned
   global meanx, meany, meanz
-  meanx = circular_mean(X[cx!=0],LW)
-  meanz = circular_mean(Z[cz!=0],LW)
+  global dmx, dmy, dmz
+  global countx, county, countz
+  meanx,dmx,countx = circular_mean(X[cx!=0],LW)
+  meanz,dmz,countz = circular_mean(Z[cz!=0],LW)
 
   R_aligned = np.copy(R_oriented)
   R_aligned[:,3] -= np.array([meanx, 0, meanz, 0])

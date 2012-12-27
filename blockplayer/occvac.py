@@ -15,89 +15,71 @@ import opencl
 import config
 import speedup_cy
 
-
-def carve_opencl(*args, **kwargs):
-    kwargs['use_opencl']=True
-    return carve(*args, **kwargs)
-
-
-def carve(xfix=None, zfix=None, use_opencl=True):
-    global gridinds, inds, grid
+def setup_grid():
+    global gridmin, gridmax
     gridmin = np.zeros((4,),'f')
     gridmax = np.zeros((4,),'f')
     gridmin[:3] = config.bounds[0]
     gridmax[:3] = config.bounds[1]
-    global occ, vac
 
-    if xfix is None or zfix is None:
-        import lattice
-        xfix, zfix = lattice.meanx, lattice.meanz
 
-    if use_opencl:
-        opencl.compute_gridinds(xfix,zfix,
-                                config.LW, config.LH,
-                                gridmin, gridmax)
-        gridinds = opencl.get_gridinds()
+def occvac_numpy(gridinds):
+    """Params:
+    """
+    inds = gridinds[gridinds[:,0,3]!=0,:,:3]
+    bins = [np.arange(0,gridmax[i]-gridmin[i]+1) for i in range(3)]
+    occH,_ = np.histogramdd(inds[:,0,:], bins)
+    vacH,_ = np.histogramdd(inds[:,1,:], bins)
+    vac = vacH>30
+    occ = occH>30
+    #print 'occvac_numpy', hash(occ.tostring()), hash(vac.tostring())
+    return occ, vac
 
-        if 0:
-            inds = gridinds[gridinds[:,0,3]!=0,:,:3]
-            if len(inds) == 0:
-                return None
-            bins = [np.arange(0,gridmax[i]-gridmin[i]+1)
-                    for i in range(3)]
-            global occ, vac
-            occH,_ = np.histogramdd(inds[:,0,:], bins)
-            vacH,_ = np.histogramdd(inds[:,1,:], bins)
+def occvac_cython(gridinds):
+    shape = [gridmax[i]-gridmin[i] for i in range(3)]
+    occ = np.zeros(shape, 'u1')
+    vac = np.zeros(shape, 'u1')
+    speedup_cy.occvac(gridinds, occ, vac,
+                      gridmin.astype('i'),
+                      gridmax.astype('i'))
+    occ, vac = occ.astype('bool'), vac.astype('bool')
+    #print 'occvac_cython', hash(occ.tostring()), hash(vac.tostring())
+    return occ, vac
 
-            vac = vacH>30
-            occ = occH>30
 
-            return occ, vac
-        else:
-            shape = [gridmax[i]-gridmin[i] for i in range(3)]
-            occ = np.zeros(shape, 'u1')
-            vac = np.zeros(shape, 'u1')
-            speedup_cy.occvac(gridinds, occ, vac,
-                              gridmin.astype('i'),
-                              gridmax.astype('i'))
-            return occ.astype('bool'), vac.astype('bool')
+def carve_numpy(xfix, zfix, P_aligned, cxyz):
+    setup_grid()
 
-    else:
-        global X,Y,Z, XYZ
-        X,Y,Z,face = np.rollaxis(opencl.get_modelxyz(),1)
-        XYZ = np.array((X,Y,Z)).transpose()
-        fix = np.array((xfix,0,zfix))
-        cxyz = np.frombuffer(np.array(face).data,
-                             dtype='i1').reshape(-1,4)[:,:3]
-        global cx,cy,cz
-        cx,cy,cz = np.rollaxis(cxyz,1)
-        f1 = cxyz*0.5
+    global cx,cy,cz
+    cx,cy,cz = cxyz
+    cxyz = np.dstack(cxyz)
+    xyz = P_aligned
+    f1 = cxyz*0.5
 
-        mod = np.array([config.LW, config.LH, config.LW])
-        gi = np.floor(-gridmin[:3] + (XYZ-fix)/mod + f1)
-        gi = np.array((gi, gi - cxyz))
-        gi = np.rollaxis(gi, 1)
+    mod = np.array([config.LW, config.LH, config.LW])
+    gridinds = np.floor(-gridmin[:3] + xyz/mod + f1)
+    gridinds = np.array((gridinds, gridinds - cxyz), 'i1')
+    gridinds = np.rollaxis(gridinds.reshape(2, -1, 3), 1)
+    inds = np.zeros((gridinds.shape[0], 2, 4), 'i1')
+    inds[:,:,:3] = gridinds
+    inds[:,0,3] = np.dot(cxyz.reshape(-1,3),(4,2,1))
+    inds[:,1,3] = np.dot(cxyz.reshape(-1,3),(4,2,1))
+    assert len(inds.shape) == 3 and inds.shape[1] == 2 and inds.shape[2] == 4
+    gi = inds[:,:,3]; print gi.dtype, gi.shape, gi.sum(), gi.min(), gi.max()
+    #print 'carve_numpy', hash(inds.tostring())
+    if len(inds) == 0: return None
+    occvac_cython(inds)
+    return occvac_numpy(inds)
 
-        def get_gridinds():
-            (L,T),(R,B) = opencl.rect
-            length = opencl.length
-            return (gridinds[:length,:,:].reshape(T-B,R-L,2,3),
-                    gridinds[length:,:,:].reshape(T-B,R-L,2,3))
+def carve_opencl(xfix, zfix):
+    setup_grid()
 
-        gridinds = gi
-        grid = get_gridinds()
-        inds = gridinds[np.any(cxyz!=0,1),:,:]
-
-        if len(inds) == 0:
-            return None
-
-        bins = [np.arange(0,gridmax[i]-gridmin[i]+1)
-                for i in range(3)]
-
-        occH,_ = np.histogramdd(inds[:,0,:], bins)
-        vacH,_ = np.histogramdd(inds[:,1,:], bins)
-
-        vac = vacH>30
-        occ = occH>30
-
-        return occ, vac
+    opencl.compute_gridinds(xfix,zfix, config.LW, config.LH, 
+                            gridmin, gridmax)
+    inds = opencl.get_gridinds()
+    gi = inds[:,:,3]; print gi.dtype, gi.shape, gi.sum(), gi.min(), gi.max()
+    assert len(inds.shape) == 3 and inds.shape[1] == 2 and inds.shape[2] == 4
+    #print 'carve_opencl', hash(inds.tostring())
+    if len(inds) == 0: return None
+    occvac_cython(inds)
+    return occvac_numpy(inds)

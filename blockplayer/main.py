@@ -63,6 +63,7 @@ def update_frame(depth, rgb=None, use_opencl=True):
 
     # Step 2. Find the lattice orientation (modulo 90 degree rotation)
     global R_oriented, R_aligned, R_correct
+    global P_oriented, P_aligned
     if use_opencl:
         R_oriented = lattice.orientation_opencl()
     else:
@@ -74,12 +75,19 @@ def update_frame(depth, rgb=None, use_opencl=True):
         R_aligned = lattice.translation_opencl(R_oriented)
     else:
         R_aligned = lattice.translation_numpy(rimg, R_oriented)
+        P_oriented = lattice.P_oriented
+        P_aligned = lattice.P_aligned
+        cXYZ = lattice.cXYZ
 
     # Step 4. Estimate the occupied voxels in the current frame
     if use_opencl:
-        occ, vac = occvac.carve_opencl()
+        occ, vac = occvac.carve_opencl(xfix=lattice.meanx,
+                                       zfix=lattice.meanz)
     else:
-        occ, vac = occvac.carve(use_opencl=False)
+        occ, vac = occvac.carve_numpy(xfix=lattice.meanx,
+                                      zfix=lattice.meanz,
+                                      P_aligned=P_aligned,
+                                      cxyz=lattice.cXYZ)
 
     # Further carve out the voxels using spacecarve
     warn = np.seterr(invalid='ignore')

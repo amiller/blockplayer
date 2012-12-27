@@ -39,7 +39,7 @@ class BlockWindow(PointWindow):
             glColor(0.2,0.2,0.2,1)
             for bg in config.bg:
                 for x,y,z in bg['boundptsM']:
-                    glVertex(x,y,z)
+                    glVertex(-x,-y,-z)
             glEnd()
             glPopMatrix()
 

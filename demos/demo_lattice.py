@@ -72,17 +72,22 @@ def once(use_opencl=True,hold=False):
 
     # Step 2. Find the lattice orientation (modulo 90 degree rotation)
     global R_oriented, R_aligned, R_correct
+    global P_oriented, P_aligned
     if use_opencl:
         R_oriented = lattice.orientation_opencl()
+        P_oriented = None
     else:
         R_oriented = lattice.orientation_numpy(rimg.normals, rimg.weights)
+        P_oriented = lattice.P_oriented
     assert R_oriented.shape == (4,4)
 
     # Step 3. Find the lattice translation (modulo (LW,LH,LW))
     if use_opencl:
         R_aligned = lattice.translation_opencl(R_oriented)
+        P_aligned = None
     else:
         R_aligned = lattice.translation_numpy(rimg, R_oriented)
+        P_aligned = lattice.P_aligned
 
     if modelmat is None:
         modelmat = R_aligned.copy()

@@ -65,11 +65,11 @@ def show_depth(name, depth):
     cv.ShowImage(name, im)
 
 
-def once():
+def once(use_opencl=True, hold=False):
     global depth, rgb
 
     if not FOR_REAL:
-        dataset.advance()
+        if not hold: dataset.advance()
         depth = dataset.depths[0]
         rgb = dataset.rgbs[0] if dataset.rgbs else None
     else:
@@ -89,7 +89,7 @@ def once():
         #rimg.compute_points()
         #pointmodels.append(rimg.point_model())
 
-    main.update_frame(depth, rgb)
+    main.update_frame(depth, rgb, use_opencl=use_opencl)
     #print main.R_aligned
 
     blockdraw.clear()
@@ -115,7 +115,6 @@ def once():
         window.modelmat = main.R_display
 
     #show_rgb(rgb)
-    window.lookat = np.array(config.center)
     window.Refresh()
     pylab.waitforbuttonpress(0.005)
     sys.stdout.flush()
