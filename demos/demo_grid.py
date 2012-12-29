@@ -65,7 +65,7 @@ def show_depth(name, depth):
     cv.ShowImage(name, im)
 
 
-def once(use_opencl=True, hold=False):
+def once(use_opencl=False, hold=False):
     global depth, rgb
 
     if not FOR_REAL:
@@ -109,7 +109,7 @@ def once(use_opencl=True, hold=False):
         window.flag_drawgrid = True
 
     if 1:
-        update_display()
+        update_display(use_opencl)
 
     if 'R_correct' in main.__dict__:
         window.modelmat = main.R_display
@@ -152,20 +152,24 @@ def go(dset=None, frame_num=0, forreal=False):
     resume()
 
 
-def update_display():
+def update_display(use_opencl):
     global face, Xo, Yo, Zo
-
-    _,_,_,face = np.rollaxis(opencl.get_modelxyz(),1)
-    Xo,Yo,Zo,_ = np.rollaxis(opencl.get_xyz(),1)
-
     global cx,cy,cz
-    cx,cy,cz,_ = np.rollaxis(np.frombuffer(np.array(face).data,
-                                           dtype='i1').reshape(-1,4),1)-1
+    if use_opencl:
+        _,_,_,face = np.rollaxis(opencl.get_modelxyz(),1)
+        Xo,Yo,Zo,_ = np.rollaxis(opencl.get_xyz(),1)
+        cx,cy,cz,_ = np.rollaxis(np.frombuffer(np.array(face).data,
+                                               dtype='i1').reshape(-1,4),1)-1
+    else:
+        cx,cy,cz = lattice.cXYZ
+        Xo,Yo,Zo = lattice.XYZo
+
+    assert cx.shape == Xo.shape
+    assert cy.shape == Yo.shape
+    assert cz.shape == Zo.shape
+
     R,G,B = [np.abs(_).astype('f') for _ in cx,cy,cz]
-
-    if 1:
-        window.update_xyz(Xo, Yo, Zo, COLOR=(R,G,B,R*0+1))
-
+    window.update_xyz(Xo,Yo,Zo,COLOR=(R,G,B,R*0+1))
     #show_rotated()
     window.Refresh()
 
@@ -181,5 +185,6 @@ if 'window' in globals():
     window.Refresh()
 
 if __name__ == '__main__':
-    pass
+    import sys
+    #go('data/sets/6dof_cube_0')
     #go()
